@@ -407,7 +407,6 @@ const getEnvVar = (key: string): string => {
 const DEFAULT_PUBLIC_SUPABASE_URL = 'https://mnxheqqkrimptceplino.supabase.co';
 const DEFAULT_PUBLIC_SUPABASE_ANON_KEY = 'sb_publishable_YpYLwcaVeJh6yJDKESHXbQ_yiSH6GHK';
 
-
 const INITIAL_SUPABASE_URL = DEFAULT_PUBLIC_SUPABASE_URL || getEnvVar('VITE_SUPABASE_URL');
 const INITIAL_SUPABASE_ANON_KEY = DEFAULT_PUBLIC_SUPABASE_ANON_KEY || getEnvVar('VITE_SUPABASE_ANON_KEY');
 
@@ -6241,10 +6240,39 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
               {adminMenuTab === 'results' && (
                 <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/25 p-6 space-y-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <h2 className="text-xl font-black text-white">Hasil Kuis Siswa ({filteredResults.length})</h2>
-                    <div className="flex gap-2">
+                    <div>
+                      <h2 className="text-xl font-black text-white">Hasil Kuis Siswa ({filteredResults.length})</h2>
+                      <p className="text-xs text-slate-400">
+                        Admin dapat mengekspor laporan atau menghapus data skor siswa yang tidak valid / uji coba.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
                       <button onClick={() => exportQuizResults('xlsx')} className="px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-300 text-xs font-bold cursor-pointer">Export XLSX</button>
                       <button onClick={() => exportQuizResults('pdf')} className="px-3 py-1.5 rounded-xl bg-amber-500/20 text-amber-300 text-xs font-bold cursor-pointer">Cetak PDF</button>
+                      {quizResults.length > 0 && (
+                        <button
+                          onClick={async () => {
+                            if (sbClient) {
+                              for (const item of quizResults) {
+                                try {
+                                  await sbClient.from('game_results').delete().eq('id', item.id);
+                                } catch {
+                                  // ignore
+                                }
+                              }
+                            }
+                            setQuizResults([]);
+                            await recordAuditLog('DELETE_ALL_QUIZ_SCORES', 'game_results', {
+                              deleted_count: quizResults.length
+                            });
+                            showToast('Seluruh riwayat skor hasil kuis berhasil dihapus.', 'info');
+                          }}
+                          className="px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Hapus Semua Skor
+                        </button>
+                      )}
                     </div>
                   </div>
                   <div className="overflow-x-auto">
@@ -6257,19 +6285,52 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                           <th className="py-3 px-3">Guru</th>
                           <th className="py-3 px-3">Skor</th>
                           <th className="py-3 px-3">Benar/Salah</th>
+                          <th className="py-3 px-3 text-right">Aksi</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-800/60">
-                        {filteredResults.map((r) => (
-                          <tr key={r.id}>
-                            <td className="py-3 px-3 font-black text-cyan-400">#{r.rank}</td>
-                            <td className="py-3 px-3 font-bold text-white">{r.studentName}</td>
-                            <td className="py-3 px-3 text-slate-300">{r.gameTitle}</td>
-                            <td className="py-3 px-3 text-slate-400">{r.teacherName}</td>
-                            <td className="py-3 px-3 font-mono font-bold text-amber-300">{r.score}</td>
-                            <td className="py-3 px-3 text-emerald-400">{r.correctCount}✓ / {r.wrongCount}✗</td>
+                        {filteredResults.length === 0 ? (
+                          <tr>
+                            <td colSpan={7} className="py-8 text-center text-slate-400">
+                              Belum ada data skor hasil kuis.
+                            </td>
                           </tr>
-                        ))}
+                        ) : (
+                          filteredResults.map((r) => (
+                            <tr key={r.id} className="hover:bg-white/[0.02]">
+                              <td className="py-3 px-3 font-black text-cyan-400">#{r.rank}</td>
+                              <td className="py-3 px-3 font-bold text-white">{r.studentName}</td>
+                              <td className="py-3 px-3 text-slate-300">{r.gameTitle}</td>
+                              <td className="py-3 px-3 text-slate-400">{r.teacherName}</td>
+                              <td className="py-3 px-3 font-mono font-bold text-amber-300">{r.score}</td>
+                              <td className="py-3 px-3 text-emerald-400">{r.correctCount}✓ / {r.wrongCount}✗</td>
+                              <td className="py-3 px-3 text-right">
+                                <button
+                                  onClick={async () => {
+                                    if (sbClient) {
+                                      try {
+                                        await sbClient.from('game_results').delete().eq('id', r.id);
+                                      } catch {
+                                        // ignore
+                                      }
+                                    }
+                                    setQuizResults((prev) => prev.filter((item) => item.id !== r.id));
+                                    await recordAuditLog('DELETE_QUIZ_SCORE', 'game_results', {
+                                      studentName: r.studentName,
+                                      gameTitle: r.gameTitle,
+                                      score: r.score
+                                    });
+                                    showToast(`Skor ${r.studentName} (${r.score} PTS) berhasil dihapus.`, 'info');
+                                  }}
+                                  className="px-2.5 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 font-bold inline-flex items-center gap-1 cursor-pointer"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  Hapus
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -7812,20 +7873,47 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
             <h1 className="text-3xl font-black text-white mt-1">Leaderboard Arena</h1>
           </div>
 
-          <div className="flex p-1 rounded-xl bg-[#0D132B] border border-indigo-500/30">
-            {(['harian', 'mingguan', 'keseluruhan'] as const).map((period) => (
+          <div className="flex flex-wrap items-center gap-2">
+            {currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin') && leaderboard.length > 0 && (
               <button
-                key={period}
-                onClick={() => setLeaderboardFilter(period)}
-                className={`px-4 py-2 rounded-lg text-xs font-bold capitalize transition-all ${
-                  leaderboardFilter === period
-                    ? 'bg-cyan-500 text-slate-950'
-                    : 'text-slate-400 hover:text-white'
-                }`}
+                onClick={async () => {
+                  if (sbClient) {
+                    for (const item of leaderboard) {
+                      try {
+                        await sbClient.from('leaderboard').delete().eq('id', item.id);
+                      } catch {
+                        // ignore
+                      }
+                    }
+                  }
+                  setLeaderboard([]);
+                  await recordAuditLog('RESET_LEADERBOARD', 'leaderboard', {
+                    cleared_count: leaderboard.length
+                  });
+                  showToast('Seluruh skor pada Leaderboard berhasil direset.', 'info');
+                }}
+                className="px-3.5 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
               >
-                {period}
+                <Trash2 className="w-3.5 h-3.5" />
+                Reset Semua Skor
               </button>
-            ))}
+            )}
+
+            <div className="flex p-1 rounded-xl bg-[#0D132B] border border-indigo-500/30">
+              {(['harian', 'mingguan', 'keseluruhan'] as const).map((period) => (
+                <button
+                  key={period}
+                  onClick={() => setLeaderboardFilter(period)}
+                  className={`px-4 py-2 rounded-lg text-xs font-bold capitalize transition-all ${
+                    leaderboardFilter === period
+                      ? 'bg-cyan-500 text-slate-950'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {period}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -7840,11 +7928,16 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                   <th className="py-4 px-5">Total XP</th>
                   <th className="py-4 px-5">Menang</th>
                   <th className="py-4 px-5 text-right">Total Skor</th>
+                  {currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin') && (
+                    <th className="py-4 px-5 text-right">Aksi Admin</th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
                 {sortedLeaderboardList.map((entry, idx) => {
                   const level = Math.max(1, Math.floor(entry.xp / 500));
+                  const isAdminRole =
+                    currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin');
                   return (
                     <tr key={entry.id} className="hover:bg-white/[0.02]">
                       <td className="py-4 px-5 font-black text-base">
@@ -7864,6 +7957,31 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                       <td className="py-4 px-5 text-right font-mono font-black text-amber-300 text-base">
                         {entry.totalScore.toLocaleString('id-ID')}
                       </td>
+                      {isAdminRole && (
+                        <td className="py-4 px-5 text-right">
+                          <button
+                            onClick={async () => {
+                              if (sbClient) {
+                                try {
+                                  await sbClient.from('leaderboard').delete().eq('id', entry.id);
+                                } catch {
+                                  // ignore
+                                }
+                              }
+                              setLeaderboard((prev) => prev.filter((item) => item.id !== entry.id));
+                              await recordAuditLog('DELETE_LEADERBOARD_SCORE', 'leaderboard', {
+                                player_name: entry.name,
+                                total_score: entry.totalScore
+                              });
+                              showToast(`Skor ${entry.name} dihapus dari Leaderboard.`, 'info');
+                            }}
+                            className="px-2.5 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 text-xs font-bold inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Hapus
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
