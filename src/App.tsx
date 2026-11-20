@@ -2734,6 +2734,22 @@ function EduGameArenaMain() {
     showToast(`Room ${target.code} telah ditutup.`, 'info');
   };
 
+  // Guru Menghapus Riwayat / Room Aktif
+  const handleDeleteTeacherRoom = async (roomToDelete: GameRoom) => {
+    setAllRooms((prev) => prev.filter((r) => r.id !== roomToDelete.id));
+    if (activeRoom?.id === roomToDelete.id) {
+      setActiveRoom(null);
+    }
+    if (sbClient) {
+      try {
+        await sbClient.from('game_rooms').delete().eq('id', roomToDelete.id);
+      } catch {
+        // ignore if already removed or demo room
+      }
+    }
+    showToast(`Riwayat & room ${roomToDelete.code} berhasil dihapus.`, 'info');
+  };
+
   // ==========================================================================
   // 8. KOMPONEN NAVBAR FUTURISTIK
   // ==========================================================================
@@ -2857,7 +2873,7 @@ function EduGameArenaMain() {
                   }}
                   className="px-3.5 py-2 rounded-xl text-xs font-bold text-cyan-300 border border-cyan-500/40 hover:bg-cyan-500/10 transition-all cursor-pointer"
                 >
-                  Login Guru
+                  Masuk
                 </button>
                 <button
                   onClick={() => {
@@ -3195,7 +3211,7 @@ function EduGameArenaMain() {
             }}
             className="px-6 py-3 rounded-xl bg-cyan-400 text-slate-950 font-black text-sm cursor-pointer"
           >
-            Login Guru / Admin
+            Masuk
           </button>
         </div>
       );
@@ -4390,7 +4406,33 @@ function EduGameArenaMain() {
           </div>
 
           <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/25 p-6 space-y-4">
-            <h2 className="text-lg font-black text-white">Riwayat & Room Aktif Anda</h2>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-lg font-black text-white">Riwayat & Room Aktif Anda</h2>
+              {myRooms.length > 0 && (
+                <button
+                  onClick={async () => {
+                    for (const rm of myRooms) {
+                      if (sbClient) {
+                        try {
+                          await sbClient.from('game_rooms').delete().eq('id', rm.id);
+                        } catch {
+                          // ignore
+                        }
+                      }
+                    }
+                    setAllRooms((prev) => prev.filter((r) => r.hostUid !== currentUser.uid));
+                    if (activeRoom && activeRoom.hostUid === currentUser.uid) {
+                      setActiveRoom(null);
+                    }
+                    showToast('Semua riwayat & room Anda berhasil dihapus.', 'info');
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Hapus Semua Riwayat
+                </button>
+              )}
+            </div>
             {myRooms.length === 0 ? (
               <div className="text-center py-10 border border-dashed border-slate-700 rounded-2xl space-y-3">
                 <p className="text-sm text-slate-400">Anda belum membuat room multiplayer.</p>
@@ -4437,18 +4479,25 @@ function EduGameArenaMain() {
                               setActiveRoom(room);
                               setActivePage(room.status === 'playing' ? 'game' : 'lobby');
                             }}
-                            className="px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 text-xs font-bold hover:bg-cyan-500/30"
+                            className="px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 text-xs font-bold hover:bg-cyan-500/30 cursor-pointer"
                           >
                             Masuk Room
                           </button>
                           <button
                             onClick={() => handleCloseRoom(room)}
-                            className="px-3 py-1.5 rounded-lg bg-rose-500/15 text-rose-300 text-xs font-bold hover:bg-rose-500/25"
+                            className="px-3 py-1.5 rounded-lg bg-amber-500/15 text-amber-300 text-xs font-bold hover:bg-amber-500/25 cursor-pointer"
                           >
                             Tutup Room
                           </button>
                         </>
                       )}
+                      <button
+                        onClick={() => handleDeleteTeacherRoom(room)}
+                        className="px-3 py-1.5 rounded-lg bg-rose-500/15 text-rose-300 text-xs font-bold hover:bg-rose-500/25 flex items-center justify-center gap-1 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Hapus
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -6821,6 +6870,7 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
 
     const [timeLeft, setTimeLeft] = useState<number>(currentQ.durationSec || roomObj.durationPerQuestion || 20);
     const [selectedOption, setSelectedOption] = useState<number | null>(null);
+    const [selectedBoolChoice, setSelectedBoolChoice] = useState<boolean | null>(null);
     const [wordGuessInput, setWordGuessInput] = useState<string>('');
     const [scrambledChosen, setScrambledChosen] = useState<string[]>([]);
     const [selectedLeftMatch, setSelectedLeftMatch] = useState<string | null>(null);
@@ -6863,6 +6913,7 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
     // Sinkronisasi timer berdasarkan server timestamp (questionStartTime)
     useEffect(() => {
       setSelectedOption(null);
+      setSelectedBoolChoice(null);
       setWordGuessInput('');
       setScrambledChosen([]);
       setSelectedLeftMatch(null);
@@ -7034,13 +7085,13 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
       hasAnsweredThisQuestion;
 
     return (
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-[#0D132B] border border-cyan-500/30">
-          <div className="flex items-center gap-3">
-            <span className="px-3 py-1 rounded-xl bg-cyan-500/20 text-cyan-300 font-black text-xs">
+      <div className="max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6 overflow-x-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2.5 sm:gap-4 p-3.5 sm:p-4 rounded-2xl bg-[#0D132B] border border-cyan-500/30">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <span className="px-2.5 sm:px-3 py-1 rounded-xl bg-cyan-500/20 text-cyan-300 font-black text-[11px] sm:text-xs shrink-0">
               SOAL {qIndex + 1} / {totalQuestions}
             </span>
-            <span className="text-sm font-bold text-white">{roomObj.gameTitle}</span>
+            <span className="text-xs sm:text-sm font-bold text-white truncate">{roomObj.gameTitle}</span>
             {roomObj.status === 'paused' && (
               <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-xs font-black animate-pulse">
                 DIJEDA HOST
@@ -7048,7 +7099,7 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
             )}
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 ml-auto">
             {isHost && (
               <div className="flex items-center gap-1.5">
                 <button
@@ -7096,29 +7147,57 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-8 rounded-3xl bg-[#0D132B] border border-indigo-500/30 p-6 sm:p-8 flex flex-col justify-between space-y-6 shadow-2xl">
-            <div className="space-y-3">
-              <span className="px-3 py-1 rounded-full bg-purple-500/20 text-purple-300 text-xs font-bold uppercase">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
+          <div className="lg:col-span-8 rounded-3xl bg-[#0D132B] border border-indigo-500/30 p-4 sm:p-8 flex flex-col justify-between space-y-5 sm:space-y-6 shadow-2xl">
+            <div className="space-y-2.5 sm:space-y-3">
+              <span className="inline-block px-2.5 sm:px-3 py-1 rounded-full bg-purple-500/20 text-purple-300 text-[10px] sm:text-xs font-bold uppercase">
                 Template: {activeGameDef.templateType.replace('-', ' ')}
               </span>
-              <h2 className="text-xl sm:text-2xl font-black text-white leading-snug">
+              <h2 className="text-base sm:text-2xl font-black text-white leading-snug break-words">
                 {currentQ.prompt}
               </h2>
               {currentQ.imageUrl && (
                 <img
                   src={currentQ.imageUrl}
                   alt="Media Soal"
-                  className="max-h-56 rounded-2xl border border-cyan-500/30 object-contain bg-[#070B19] p-2"
+                  className="w-full max-h-44 sm:max-h-56 rounded-2xl border border-cyan-500/30 object-contain bg-[#070B19] p-2"
                 />
               )}
             </div>
 
             {activeGameDef.templateType === 'quiz-battle' && (
-              <div className="grid sm:grid-cols-2 gap-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3.5">
                 {(currentQ.options || []).map((opt, idx) => {
                   const isPicked = selectedOption === idx;
-                  const revealCorrect = timeLeft === 0 && idx === currentQ.correctIndex;
+                  const isCorrectIdx = idx === currentQ.correctIndex;
+                  const showOutcome = hasAnsweredThisQuestion || questionLocked || timeLeft === 0;
+
+                  let cardStyle =
+                    'bg-[#070B19] border-slate-700/80 text-slate-200 hover:border-cyan-400/60 hover:bg-cyan-500/5';
+                  let badgeStyle = 'bg-indigo-950 border-indigo-500/40 text-cyan-300';
+
+                  if (isPicked) {
+                    if (showOutcome && isCorrectIdx) {
+                      cardStyle =
+                        'bg-emerald-500/25 border-2 border-emerald-400 text-white ring-2 ring-emerald-400/50 shadow-lg shadow-emerald-500/20 scale-[1.01]';
+                      badgeStyle = 'bg-emerald-400 border-emerald-300 text-slate-950';
+                    } else if (showOutcome && !isCorrectIdx) {
+                      cardStyle =
+                        'bg-rose-500/25 border-2 border-rose-400 text-white ring-2 ring-rose-400/50 shadow-lg shadow-rose-500/20 scale-[1.01]';
+                      badgeStyle = 'bg-rose-400 border-rose-300 text-slate-950';
+                    } else {
+                      cardStyle =
+                        'bg-cyan-500/30 border-2 border-cyan-300 text-white ring-2 ring-cyan-400/60 shadow-lg shadow-cyan-500/25 scale-[1.01]';
+                      badgeStyle = 'bg-cyan-400 border-cyan-200 text-slate-950';
+                    }
+                  } else if (showOutcome && isCorrectIdx) {
+                    cardStyle =
+                      'bg-emerald-500/15 border-2 border-emerald-400/80 text-emerald-200';
+                    badgeStyle = 'bg-emerald-500/30 border-emerald-400 text-emerald-200';
+                  } else if (showOutcome) {
+                    cardStyle = 'bg-[#070B19]/60 border-slate-800 text-slate-500 opacity-65';
+                  }
+
                   return (
                     <button
                       key={idx}
@@ -7137,18 +7216,34 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                           { selectedOption: idx }
                         );
                       }}
-                      className={`p-4 rounded-2xl border text-left font-bold text-sm sm:text-base transition-all flex items-center gap-3 ${
-                        revealCorrect
-                          ? 'bg-emerald-500/25 border-emerald-400 text-emerald-200'
-                          : isPicked
-                          ? 'bg-cyan-500/25 border-cyan-400 text-white'
-                          : 'bg-[#070B19] border-slate-700/80 text-slate-200 hover:border-cyan-400/60'
-                      }`}
+                      className={`p-3.5 sm:p-4 rounded-2xl border text-left font-bold text-xs sm:text-base transition-all flex items-center justify-between gap-2.5 cursor-pointer active:scale-[0.99] ${cardStyle}`}
                     >
-                      <span className="w-8 h-8 rounded-lg bg-indigo-950 border border-indigo-500/40 flex items-center justify-center text-xs font-black text-cyan-300 shrink-0">
-                        {String.fromCharCode(65 + idx)}
-                      </span>
-                      <span>{opt}</span>
+                      <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                        <span
+                          className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center text-xs font-black shrink-0 ${badgeStyle}`}
+                        >
+                          {String.fromCharCode(65 + idx)}
+                        </span>
+                        <span className="break-words">{opt}</span>
+                      </div>
+                      {isPicked && (
+                        <span
+                          className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shrink-0 ${
+                            showOutcome
+                              ? isCorrectIdx
+                                ? 'bg-emerald-400 text-slate-950'
+                                : 'bg-rose-400 text-slate-950'
+                              : 'bg-cyan-300 text-slate-950'
+                          }`}
+                        >
+                          {showOutcome ? (isCorrectIdx ? '✓ Benar' : '✕ Pilihanmu') : '✓ Dipilih'}
+                        </span>
+                      )}
+                      {!isPicked && showOutcome && isCorrectIdx && (
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-500/30 text-emerald-200 shrink-0">
+                          Kunci ✓
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -7159,17 +7254,17 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
               activeGameDef.templateType === 'tebak-gambar') && (
               <div className="space-y-4">
                 {currentQ.clue && (
-                  <p className="text-sm sm:text-base text-slate-200 bg-[#070B19] p-4 rounded-2xl border border-slate-800">
+                  <p className="text-xs sm:text-base text-slate-200 bg-[#070B19] p-3.5 sm:p-4 rounded-2xl border border-slate-800">
                     <strong>Petunjuk:</strong> {currentQ.clue}
                   </p>
                 )}
-                <div className="flex flex-wrap justify-center gap-2 py-2">
+                <div className="flex flex-wrap justify-center gap-1.5 sm:gap-2 py-2">
                   {(currentQ.answerWord || 'ARENA').split('').map((char, i, arr) => {
                     const showHint = i === 0 || i === arr.length - 1 || timeLeft === 0;
                     return (
                       <div
                         key={i}
-                        className="w-10 h-12 rounded-xl bg-[#070B19] border-2 border-cyan-500/50 flex items-center justify-center font-mono text-xl font-black text-cyan-300"
+                        className="w-8 h-10 sm:w-10 sm:h-12 rounded-xl bg-[#070B19] border-2 border-cyan-500/50 flex items-center justify-center font-mono text-base sm:text-xl font-black text-cyan-300"
                       >
                         {showHint ? char : '_'}
                       </div>
@@ -7192,7 +7287,7 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                         { guess: clean }
                       );
                     }}
-                    className="flex gap-2"
+                    className="flex flex-col sm:flex-row gap-2"
                   >
                     <input
                       type="text"
@@ -7200,12 +7295,12 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                       placeholder="Ketik jawaban..."
                       value={wordGuessInput}
                       onChange={(e) => setWordGuessInput(e.target.value.toUpperCase())}
-                      className="flex-1 px-4 py-3 rounded-xl bg-[#070B19] border border-cyan-500/40 text-white font-mono font-bold uppercase"
+                      className="w-full sm:flex-1 px-4 py-3 rounded-xl bg-[#070B19] border border-cyan-500/40 text-white font-mono text-sm sm:text-base font-bold uppercase"
                     />
                     <button
                       type="submit"
                       disabled={hasAnsweredThisQuestion || questionLocked || timeLeft === 0}
-                      className="px-5 py-3 rounded-xl font-black text-sm text-slate-950 bg-cyan-400 cursor-pointer"
+                      className="w-full sm:w-auto px-5 py-3 rounded-xl font-black text-sm text-slate-950 bg-cyan-400 cursor-pointer"
                     >
                       Jawab
                     </button>
@@ -7216,9 +7311,9 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
 
             {activeGameDef.templateType === 'matching-puzzle' && currentQ.pairs && (
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div className="space-y-2">
-                    <div className="text-xs font-bold text-slate-400 uppercase">Istilah / Item</div>
+                    <div className="text-[11px] sm:text-xs font-bold text-slate-400 uppercase">Istilah / Item</div>
                     {currentQ.pairs.map((p) => {
                       const done = matchedPairIds.includes(p.id);
                       const active = selectedLeftMatch === p.id;
@@ -7364,24 +7459,24 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
             {activeGameDef.templateType === 'susun-kata' && (
               <div className="space-y-4">
                 {currentQ.clue && <p className="text-xs text-slate-300">Petunjuk: {currentQ.clue}</p>}
-                <div className="min-h-[52px] p-3 rounded-2xl bg-[#070B19] border border-cyan-500/40 flex flex-wrap gap-2 justify-center">
+                <div className="min-h-[48px] sm:min-h-[52px] p-2.5 sm:p-3 rounded-2xl bg-[#070B19] border border-cyan-500/40 flex flex-wrap gap-1.5 sm:gap-2 justify-center">
                   {scrambledChosen.map((ch, idx) => (
                     <button
                       key={idx}
                       onClick={() => setScrambledChosen((prev) => prev.filter((_, i) => i !== idx))}
-                      className="w-10 h-10 rounded-xl bg-cyan-500 text-slate-950 font-mono font-black text-lg"
+                      className="w-8 h-9 sm:w-10 sm:h-10 rounded-xl bg-cyan-500 text-slate-950 font-mono font-black text-base sm:text-lg"
                     >
                       {ch}
                     </button>
                   ))}
                 </div>
-                <div className="flex flex-wrap gap-2 justify-center">
+                <div className="flex flex-wrap gap-1.5 sm:gap-2 justify-center">
                   {scrambledLetters.map((ch, idx) => (
                     <button
                       key={idx}
                       disabled={questionLocked}
                       onClick={() => setScrambledChosen((prev) => [...prev, ch])}
-                      className="w-10 h-10 rounded-xl bg-indigo-950 border border-indigo-500/40 text-white font-mono font-black text-lg hover:border-cyan-400"
+                      className="w-9 h-10 sm:w-10 sm:h-10 rounded-xl bg-indigo-950 border border-indigo-500/40 text-white font-mono font-black text-base sm:text-lg hover:border-cyan-400"
                     >
                       {ch}
                     </button>
@@ -7467,28 +7562,47 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
 
             {activeGameDef.templateType === 'benar-salah' && (
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   {[
                     { label: 'BENAR', val: true, color: 'from-emerald-500 to-teal-600' },
                     { label: 'SALAH', val: false, color: 'from-rose-500 to-pink-600' }
-                  ].map((btn) => (
-                    <button
-                      key={btn.label}
-                      disabled={hasAnsweredThisQuestion || questionLocked || timeLeft === 0 || Boolean(isHost)}
-                      onClick={async () => {
-                        const ok = btn.val === Boolean(currentQ.isTrueStatement);
-                        await submitAnswer(
-                          ok,
-                          ok ? currentQ.points || 100 : 0,
-                          `${ok ? 'Tepat!' : 'Kurang tepat.'} ${currentQ.explanation || ''}`,
-                          { choice: btn.val }
-                        );
-                      }}
-                      className={`py-5 rounded-2xl font-black text-lg text-white bg-gradient-to-r ${btn.color} hover:brightness-110 shadow-lg cursor-pointer`}
-                    >
-                      {btn.label}
-                    </button>
-                  ))}
+                  ].map((btn) => {
+                    const isPicked = selectedBoolChoice === btn.val;
+                    const showOutcome = hasAnsweredThisQuestion || questionLocked || timeLeft === 0;
+                    const isCorrectBtn = btn.val === Boolean(currentQ.isTrueStatement);
+                    return (
+                      <button
+                        key={btn.label}
+                        disabled={hasAnsweredThisQuestion || questionLocked || timeLeft === 0 || Boolean(isHost)}
+                        onClick={async () => {
+                          setSelectedBoolChoice(btn.val);
+                          const ok = btn.val === Boolean(currentQ.isTrueStatement);
+                          await submitAnswer(
+                            ok,
+                            ok ? currentQ.points || 100 : 0,
+                            `${ok ? 'Tepat!' : 'Kurang tepat.'} ${currentQ.explanation || ''}`,
+                            { choice: btn.val }
+                          );
+                        }}
+                        className={`py-4 sm:py-5 px-4 rounded-2xl font-black text-base sm:text-lg text-white bg-gradient-to-r ${btn.color} transition-all shadow-lg cursor-pointer flex flex-col items-center justify-center gap-1 active:scale-[0.99] ${
+                          isPicked
+                            ? 'ring-4 ring-cyan-300 scale-[1.02] brightness-110'
+                            : showOutcome
+                            ? isCorrectBtn
+                              ? 'ring-2 ring-emerald-300 opacity-90'
+                              : 'opacity-45'
+                            : 'hover:brightness-110'
+                        }`}
+                      >
+                        <span>{btn.label}</span>
+                        {isPicked && (
+                          <span className="px-2.5 py-0.5 rounded-full bg-slate-950/75 text-cyan-200 text-[10px] font-black tracking-wider">
+                            ✓ PILIHAN KAMU
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -7505,8 +7619,8 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
               </div>
             )}
 
-            <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
-              <span className="text-xs text-slate-400">
+            <div className="pt-4 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2.5">
+              <span className="text-[11px] sm:text-xs text-slate-400">
                 {previewGameOverride
                   ? 'Mode Preview Guru (Skor tidak masuk leaderboard)'
                   : isHost
@@ -7519,7 +7633,7 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
               {(previewGameOverride || isHost || (isPracticeMode && canAdvance)) && (
                 <button
                   onClick={handleNextStep}
-                  className="px-5 py-2.5 rounded-xl font-black text-xs sm:text-sm text-slate-950 bg-cyan-400 hover:bg-cyan-300 flex items-center gap-1.5 cursor-pointer"
+                  className="w-full sm:w-auto justify-center px-5 py-2.5 rounded-xl font-black text-xs sm:text-sm text-slate-950 bg-cyan-400 hover:bg-cyan-300 flex items-center gap-1.5 cursor-pointer"
                 >
                   {qIndex + 1 < totalQuestions
                     ? 'Soal Berikutnya'
@@ -8073,7 +8187,7 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
   }, [games, catalogSearch, catalogCategoryFilter, catalogGradeFilter, catalogDifficultyFilter]);
 
   return (
-    <div className="min-h-screen bg-[#070B19] text-slate-100 font-sans selection:bg-emerald-400 selection:text-slate-950">
+    <div className="min-h-screen bg-[#070B19] text-slate-100 font-sans selection:bg-emerald-400 selection:text-slate-950 overflow-x-hidden">
       {Navbar()}
 
       {toast && (
