@@ -1475,6 +1475,20 @@ export default function App() {
   }>({ fullName: 0, username: 1, email: 2, nipNis: 3, className: 4 });
   const [isImportingServer, setIsImportingServer] = useState(false);
 
+  // Sub-page states lifted to top-level App so conditional navigation never violates React Rules of Hooks
+  const [selectedTemplateFilter, setSelectedTemplateFilter] = useState<string>('Semua');
+  const [uploadingAsset, setUploadingAsset] = useState<boolean>(false);
+  const [lobbyCodeCopied, setLobbyCodeCopied] = useState<boolean>(false);
+  const [activeDocTab, setActiveDocTab] = useState<'connect' | 'structure' | 'sql' | 'edge'>('connect');
+
+  const sortedLeaderboardList = useMemo(() => {
+    const base =
+      leaderboardFilter === 'keseluruhan'
+        ? leaderboard
+        : leaderboard.filter((item) => item.period === leaderboardFilter || item.period === 'keseluruhan');
+    return [...base].sort((a, b) => b.totalScore - a.totalScore);
+  }, [leaderboard, leaderboardFilter]);
+
   // ==========================================================================
   // 5. EFEK SUPABASE AUTH & REALTIME SUBSCRIPTIONS (POSTGRES + PRESENCE + BROADCAST)
   // ==========================================================================
@@ -2822,9 +2836,6 @@ export default function App() {
   // 11. GAME CREATOR STUDIO (BUILDER 8 TEMPLATE + SUPABASE STORAGE + PREVIEW)
   // ==========================================================================
   const GameCreatorStudioPage = () => {
-    const [selectedTemplateFilter, setSelectedTemplateFilter] = useState<string>('Semua');
-    const [uploadingAsset, setUploadingAsset] = useState<boolean>(false);
-
     if (!currentUser || !['teacher', 'admin', 'super_admin'].includes(currentUser.role)) {
       return (
         <div className="max-w-xl mx-auto px-4 py-16 text-center space-y-4">
@@ -5229,8 +5240,6 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
   // 14. HALAMAN RUANG TUNGGU (MULTIPLAYER LOBBY + SUPABASE PRESENCE)
   // ==========================================================================
   const MultiplayerLobby = () => {
-    const [copied, setCopied] = useState(false);
-
     if (!activeRoom) {
       return (
         <div className="max-w-xl mx-auto px-4 py-16 text-center space-y-4">
@@ -5258,9 +5267,9 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
 
     const handleCopyCode = () => {
       navigator.clipboard?.writeText(activeRoom.code);
-      setCopied(true);
+      setLobbyCodeCopied(true);
       showToast(`Kode room ${activeRoom.code} disalin ke clipboard!`, 'success');
-      setTimeout(() => setCopied(false), 2000);
+      setTimeout(() => setLobbyCodeCopied(false), 2000);
     };
 
     return (
@@ -5290,8 +5299,8 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                 onClick={handleCopyCode}
                 className="w-full py-1.5 px-3 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
               >
-                {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                {copied ? 'Tersalin!' : 'Salin Kode'}
+                {lobbyCodeCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                {lobbyCodeCopied ? 'Tersalin!' : 'Salin Kode'}
               </button>
             </div>
           </div>
@@ -6360,14 +6369,6 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
   // 17. HALAMAN LEADERBOARD GLOBAL
   // ==========================================================================
   const LeaderboardPage = () => {
-    const filteredList = useMemo(() => {
-      const base =
-        leaderboardFilter === 'keseluruhan'
-          ? leaderboard
-          : leaderboard.filter((item) => item.period === leaderboardFilter || item.period === 'keseluruhan');
-      return [...base].sort((a, b) => b.totalScore - a.totalScore);
-    }, [leaderboard, leaderboardFilter]);
-
     return (
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -6409,7 +6410,7 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
-                {filteredList.map((entry, idx) => {
+                {sortedLeaderboardList.map((entry, idx) => {
                   const level = Math.max(1, Math.floor(entry.xp / 500));
                   return (
                     <tr key={entry.id} className="hover:bg-white/[0.02]">
@@ -6445,8 +6446,6 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
   // 18. HALAMAN KONFIGURASI SUPABASE, SQL MIGRATION, RLS, STORAGE & EDGE FUNCTIONS
   // ==========================================================================
   const SupabaseGuidePage = () => {
-    const [activeDocTab, setActiveDocTab] = useState<'connect' | 'structure' | 'sql' | 'edge'>('connect');
-
     const copyText = (txt: string, label: string) => {
       navigator.clipboard?.writeText(txt);
       showToast(`${label} disalin ke clipboard!`, 'success');
