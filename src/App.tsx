@@ -3184,9 +3184,9 @@ export default function App() {
         creatorName: currentUser.name,
         title: `${meta.name} Baru - ${currentUser.name}`,
         templateType: tpl,
-        category: 'Game Buatan Guru',
+        category: lessonCategories[0] || 'Game Buatan Guru',
         subject: 'Produktif SMK',
-        gradeLevel: 'Kelas XI',
+        gradeLevel: schoolClasses[0]?.name || 'Kelas XI',
         description: `Game edukasi interaktif berbasis ${meta.name} yang dibuat oleh ${currentUser.name}.`,
         minPlayers: 1,
         maxPlayers: 35,
@@ -3466,12 +3466,25 @@ export default function App() {
               <div>
                 <label className="text-[11px] font-bold text-slate-400 block mb-1">Kelas & Kesulitan</label>
                 <div className="grid grid-cols-2 gap-2">
-                  <input
-                    type="text"
+                  <select
                     value={editingGame.gradeLevel}
                     onChange={(e) => setEditingGame({ ...editingGame, gradeLevel: e.target.value })}
                     className="px-3 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs"
-                  />
+                  >
+                    {schoolClasses.map((cls) => (
+                      <option key={cls.id} value={cls.name}>
+                        {cls.name}
+                      </option>
+                    ))}
+                    {!schoolClasses.some((cls) => cls.name === editingGame.gradeLevel) &&
+                      editingGame.gradeLevel && (
+                        <option value={editingGame.gradeLevel}>{editingGame.gradeLevel}</option>
+                      )}
+                    <option value="Kelas X">Kelas X (Umum)</option>
+                    <option value="Kelas XI">Kelas XI (Umum)</option>
+                    <option value="Kelas XII">Kelas XII (Umum)</option>
+                    <option value="Semua Kelas">Semua Kelas</option>
+                  </select>
                   <select
                     value={editingGame.difficulty}
                     onChange={(e) =>
@@ -7855,15 +7868,32 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
   // 20. RENDER UTAMA APLIKASI
   // ==========================================================================
   const filteredCatalogGames = useMemo(() => {
+    const normalize = (s: string) => s.trim().toLowerCase();
     return games.filter((g) => {
       if (g.status !== 'published') return false;
+      const q = normalize(catalogSearch);
       const matchSearch =
-        g.title.toLowerCase().includes(catalogSearch.toLowerCase()) ||
-        g.creatorName.toLowerCase().includes(catalogSearch.toLowerCase()) ||
-        g.subject.toLowerCase().includes(catalogSearch.toLowerCase());
-      const matchCat = catalogCategoryFilter === 'Semua' || g.category === catalogCategoryFilter;
-      const matchGrade = catalogGradeFilter === 'Semua' || g.gradeLevel.includes(catalogGradeFilter);
-      const matchDiff = catalogDifficultyFilter === 'Semua' || g.difficulty === catalogDifficultyFilter;
+        !q ||
+        normalize(g.title).includes(q) ||
+        normalize(g.creatorName).includes(q) ||
+        normalize(g.subject).includes(q) ||
+        normalize(g.category).includes(q);
+      const matchCat =
+        catalogCategoryFilter === 'Semua' ||
+        normalize(g.category) === normalize(catalogCategoryFilter);
+      const matchGrade = (() => {
+        if (catalogGradeFilter === 'Semua') return true;
+        const gGrade = normalize(g.gradeLevel || '');
+        const fGrade = normalize(catalogGradeFilter);
+        if (gGrade === fGrade || gGrade === 'semua kelas') return true;
+        // Cocokkan tingkat kelas secara presisi (misal 'kelas x' atau 'x pplg 1' tanpa tertukar dengan 'xi' / 'xii')
+        const levelToken = fGrade.replace(/^kelas\s+/, '');
+        const tokens = gGrade.split(/[^a-z0-9]+/).filter(Boolean);
+        return tokens.includes(levelToken);
+      })();
+      const matchDiff =
+        catalogDifficultyFilter === 'Semua' ||
+        normalize(g.difficulty) === normalize(catalogDifficultyFilter);
       return matchSearch && matchCat && matchGrade && matchDiff;
     });
   }, [games, catalogSearch, catalogCategoryFilter, catalogGradeFilter, catalogDifficultyFilter]);
@@ -7946,9 +7976,14 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                 className="px-3 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs"
               >
                 <option value="Semua">Semua Kelas</option>
-                <option value="Kelas X">Kelas X</option>
-                <option value="Kelas XI">Kelas XI</option>
-                <option value="Kelas XII">Kelas XII</option>
+                {schoolClasses.map((cls) => (
+                  <option key={cls.id} value={cls.name}>
+                    {cls.name}
+                  </option>
+                ))}
+                <option value="Kelas X">Tingkat Kelas X</option>
+                <option value="Kelas XI">Tingkat Kelas XI</option>
+                <option value="Kelas XII">Tingkat Kelas XII</option>
               </select>
               <select
                 value={catalogDifficultyFilter}
