@@ -1256,7 +1256,6 @@ interface SchoolClassItem {
   name: string;
   gradeLevel: string;
   major: string;
-  homeroomTeacher: string;
   academicYear: string;
   studentCount: number;
   isActive: boolean;
@@ -1288,16 +1287,16 @@ interface AuditLogEntry {
 }
 
 const INITIAL_CLASSES: SchoolClassItem[] = [
-  { id: 'cls-1', name: 'X PPLG 1', gradeLevel: 'X', major: 'Pengembangan Perangkat Lunak & Gim', homeroomTeacher: 'Bapak Budi Santoso, S.Kom', academicYear: '2026/2027', studentCount: 34, isActive: true },
-  { id: 'cls-2', name: 'XI RPL 1', gradeLevel: 'XI', major: 'Rekayasa Perangkat Lunak', homeroomTeacher: 'Ibu Siti Aminah, M.Kom', academicYear: '2026/2027', studentCount: 32, isActive: true },
-  { id: 'cls-3', name: 'XI TKJ 2', gradeLevel: 'XI', major: 'Teknik Komputer & Jaringan', homeroomTeacher: 'Bapak Hendra, S.Kom', academicYear: '2026/2027', studentCount: 35, isActive: true },
-  { id: 'cls-4', name: 'XII RPL 1', gradeLevel: 'XII', major: 'Rekayasa Perangkat Lunak', homeroomTeacher: 'Pak Dimas, S.T.', academicYear: '2026/2027', studentCount: 31, isActive: true }
+  { id: 'cls-1', name: 'X PPLG 1', gradeLevel: 'X', major: 'Pengembangan Perangkat Lunak & Gim', academicYear: '2026/2027', studentCount: 34, isActive: true },
+  { id: 'cls-2', name: 'XI RPL 1', gradeLevel: 'XI', major: 'Rekayasa Perangkat Lunak', academicYear: '2026/2027', studentCount: 32, isActive: true },
+  { id: 'cls-3', name: 'XI TKJ 2', gradeLevel: 'XI', major: 'Teknik Komputer & Jaringan', academicYear: '2026/2027', studentCount: 35, isActive: true },
+  { id: 'cls-4', name: 'XII RPL 1', gradeLevel: 'XII', major: 'Rekayasa Perangkat Lunak', academicYear: '2026/2027', studentCount: 31, isActive: true }
 ];
 
 const INITIAL_MANAGED_ACCOUNTS: ManagedAccount[] = [
-  { id: 'acc-1', username: 'budi_santoso', fullName: 'Bapak Budi Santoso, S.Kom', email: 'budi.santoso@darulfikri.sch.id', nipNis: '198804122015011001', role: 'teacher', className: 'X PPLG 1', isActive: true, createdAt: '2026-07-15' },
-  { id: 'acc-2', username: 'siti_aminah', fullName: 'Ibu Siti Aminah, M.Kom', email: 'siti.aminah@darulfikri.sch.id', nipNis: '199008212017022004', role: 'teacher', className: 'XI RPL 1', isActive: true, createdAt: '2026-07-15' },
-  { id: 'acc-3', username: 'hendra_tkj', fullName: 'Bapak Hendra, S.Kom', email: 'hendra@darulfikri.sch.id', nipNis: '198711032014031002', role: 'teacher', className: 'XI TKJ 2', isActive: true, createdAt: '2026-07-16' },
+  { id: 'acc-1', username: 'budi_santoso', fullName: 'Bapak Budi Santoso, S.Kom', email: 'budi.santoso@darulfikri.sch.id', nipNis: '198804122015011001', role: 'teacher', className: '', isActive: true, createdAt: '2026-07-15' },
+  { id: 'acc-2', username: 'siti_aminah', fullName: 'Ibu Siti Aminah, M.Kom', email: 'siti.aminah@darulfikri.sch.id', nipNis: '199008212017022004', role: 'teacher', className: '', isActive: true, createdAt: '2026-07-15' },
+  { id: 'acc-3', username: 'hendra_tkj', fullName: 'Bapak Hendra, S.Kom', email: 'hendra@darulfikri.sch.id', nipNis: '198711032014031002', role: 'teacher', className: '', isActive: true, createdAt: '2026-07-16' },
   { id: 'acc-4', username: 'raka_pratama', fullName: 'Raka Pratama', email: 'raka.pratama@siswa.darulfikri.sch.id', nipNis: '24251001', role: 'student', className: 'XII RPL 1', isActive: true, createdAt: '2026-07-18' },
   { id: 'acc-5', username: 'nadia_putri', fullName: 'Nadia Putri', email: 'nadia.putri@siswa.darulfikri.sch.id', nipNis: '24251002', role: 'student', className: 'XI TKJ 2', isActive: true, createdAt: '2026-07-18' },
   { id: 'acc-6', username: 'dimas_saputra', fullName: 'Dimas Saputra', email: 'dimas.saputra@siswa.darulfikri.sch.id', nipNis: '24251003', role: 'student', className: 'XI RPL 1', isActive: true, createdAt: '2026-07-19' }
@@ -1557,7 +1556,6 @@ export default function App() {
 
   const [newClassName, setNewClassName] = useState('');
   const [newClassMajor, setNewClassMajor] = useState('Rekayasa Perangkat Lunak');
-  const [newClassTeacher, setNewClassTeacher] = useState('Bapak Budi Santoso, S.Kom');
 
   const [resSearch, setResSearch] = useState('');
   const [resClassFilter, setResClassFilter] = useState('Semua');
@@ -1566,17 +1564,17 @@ export default function App() {
   const [resDateFilter, setResDateFilter] = useState('');
   const [resPage, setResPage] = useState(1);
 
-  const [importTargetRole, setImportTargetRole] = useState<'teacher' | 'student'>('student');
+  const [importTargetRole, setImportTargetRole] = useState<'teacher' | 'student'>('teacher');
   const [importFileName, setImportFileName] = useState('');
   const [importRawHeaders, setImportRawHeaders] = useState<string[]>([]);
   const [importRawRows, setImportRawRows] = useState<string[][]>([]);
   const [colMap, setColMap] = useState<{
     fullName: number;
     username: number;
-    email: number;
     nipNis: number;
-    className: number;
-  }>({ fullName: 0, username: 1, email: 2, nipNis: 3, className: 4 });
+    email: number;
+    password: number;
+  }>({ fullName: 0, username: 1, nipNis: 2, email: 3, password: 4 });
   const [isImportingServer, setIsImportingServer] = useState(false);
 
   // Sub-page states lifted to top-level App so conditional navigation never violates React Rules of Hooks
@@ -4173,14 +4171,11 @@ export default function App() {
       };
 
       const downloadImportTemplate = (roleType: 'teacher' | 'student', format: 'xlsx' | 'csv' | 'docx') => {
-        const headers =
-          roleType === 'teacher'
-            ? ['Nama Lengkap', 'Username', 'Email', 'NIP', 'Wali Kelas']
-            : ['Nama Lengkap', 'Username', 'Email', 'NIS', 'Kelas'];
+        const headers = ['NAMA', 'USERNAME', 'NIP', 'EMAIL', 'PASSWORD'];
         const sample =
           roleType === 'teacher'
-            ? ['Ahmad Fauzi, S.Kom', 'ahmad_fauzi', 'ahmad.fauzi@darulfikri.sch.id', '199105142019031005', 'XI RPL 1']
-            : ['Zaki Alfarizi', 'zaki_alfarizi', 'zaki.alfarizi@siswa.darulfikri.sch.id', '24251099', 'XI RPL 1'];
+            ? ['Ahmad Fauzi, S.Kom', 'ahmad_fauzi', '199105142019031005', 'ahmad.fauzi@darulfikri.sch.id', 'GuruDF2026!']
+            : ['Zaki Alfarizi', 'zaki_alfarizi', '24251099', 'zaki.alfarizi@siswa.darulfikri.sch.id', 'SiswaDF2026!'];
 
         if (format === 'csv') {
           const csv = `${headers.join(',')}\n${sample.map((s) => `"${s}"`).join(',')}`;
@@ -4203,7 +4198,7 @@ export default function App() {
 </table></body></html>`;
           triggerDownloadBlob(docHtml, `template_import_${roleType}.docx`, 'application/msword');
         }
-        showToast(`Template ${format.toUpperCase()} untuk ${roleType} berhasil diunduh!`, 'success');
+        showToast(`Template ${format.toUpperCase()} (${headers.join(', ')}) berhasil diunduh!`, 'success');
       };
 
       const handleParseImportFile = async (file: File) => {
@@ -4230,42 +4225,43 @@ export default function App() {
         }
 
         if (parsedRows.length < 2) {
-          showToast('File kosong atau format tabel tidak terbaca. Gunakan template yang tersedia.', 'error');
+          showToast('File kosong atau format tabel tidak terbaca. Gunakan format NAMA, USERNAME, NIP, EMAIL, PASSWORD.', 'error');
           return;
         }
         setImportRawHeaders(parsedRows[0]);
         setImportRawRows(parsedRows.slice(1));
-        setColMap({ fullName: 0, username: 1, email: 2, nipNis: 3, className: 4 });
+        setColMap({ fullName: 0, username: 1, nipNis: 2, email: 3, password: 4 });
       };
 
-      // Validasi baris import & deteksi duplikasi NIS/NIP/Email/Username
+      // Validasi baris import format 5 kolom: NAMA, USERNAME, NIP, EMAIL, PASSWORD
       const validatedImportRows = importRawRows.map((row, idx) => {
         const fullName = (row[colMap.fullName] || '').trim();
         const username = (row[colMap.username] || '').trim().toLowerCase();
-        const email = (row[colMap.email] || '').trim().toLowerCase();
         const nipNis = (row[colMap.nipNis] || '').trim();
-        const className = (row[colMap.className] || 'XI RPL 1').trim();
+        const email = (row[colMap.email] || '').trim().toLowerCase();
+        const password = (row[colMap.password] || '').trim();
 
         const errors: string[] = [];
-        if (!fullName || fullName.length < 2) errors.push('Nama wajib diisi');
-        if (!username || !/^[a-z0-9_]{3,30}$/.test(username)) errors.push('Username tidak valid');
-        if (!email || !email.includes('@')) errors.push('Format email salah');
-        if (!nipNis) errors.push(importTargetRole === 'teacher' ? 'NIP kosong' : 'NIS kosong');
+        if (!fullName || fullName.length < 2) errors.push('NAMA wajib diisi');
+        if (!username || !/^[a-z0-9_]{3,30}$/.test(username)) errors.push('USERNAME tidak valid');
+        if (!nipNis) errors.push('NIP/NIS kosong');
+        if (!email || !email.includes('@')) errors.push('EMAIL tidak valid');
+        if (!password || password.length < 6) errors.push('PASSWORD min. 6 karakter');
 
         const dupEmail = managedAccounts.some((a) => a.email.toLowerCase() === email);
         const dupUser = managedAccounts.some((a) => a.username.toLowerCase() === username);
         const dupNip = managedAccounts.some((a) => a.nipNis === nipNis);
-        if (dupEmail) errors.push('Duplikat Email');
-        if (dupUser) errors.push('Duplikat Username');
-        if (dupNip) errors.push(importTargetRole === 'teacher' ? 'Duplikat NIP' : 'Duplikat NIS');
+        if (dupEmail) errors.push('Duplikat EMAIL');
+        if (dupUser) errors.push('Duplikat USERNAME');
+        if (dupNip) errors.push('Duplikat NIP/NIS');
 
         return {
           rowNum: idx + 2,
           fullName,
           username,
-          email,
           nipNis,
-          className,
+          email,
+          password,
           isValid: errors.length === 0,
           errors
         };
@@ -4282,13 +4278,12 @@ export default function App() {
           if (sbClient) {
             await sbClient.functions.invoke('admin-provision-users', {
               body: {
-                send_invite: true,
                 users: validItems.map((v) => ({
                   full_name: v.fullName,
                   username: v.username,
-                  email: v.email,
                   nip_nis: v.nipNis,
-                  class_name: v.className,
+                  email: v.email,
+                  password: v.password,
                   role: importTargetRole
                 }))
               }
@@ -4302,7 +4297,7 @@ export default function App() {
             email: v.email,
             nipNis: v.nipNis,
             role: importTargetRole,
-            className: v.className,
+            className: importTargetRole === 'student' ? 'Semua Kelas' : '',
             isActive: true,
             createdAt: new Date().toISOString().slice(0, 10)
           }));
@@ -4313,7 +4308,7 @@ export default function App() {
             count: validItems.length
           });
           showToast(
-            `${validItems.length} akun ${importTargetRole === 'teacher' ? 'Guru' : 'Siswa'} diproses via Edge Function (tautan aktivasi password aman dikirim ke email).`,
+            `${validItems.length} akun ${importTargetRole === 'teacher' ? 'Guru' : 'Siswa'} berhasil diimpor dari file Excel!`,
             'success'
           );
           setImportRawRows([]);
@@ -4325,15 +4320,15 @@ export default function App() {
 
       const exportAccountsReport = (roleFilter: 'teacher' | 'student', format: 'xlsx' | 'csv' | 'docx') => {
         const list = managedAccounts.filter((a) => a.role === roleFilter);
-        const headers = ['Nama Lengkap', 'Username', 'Email', roleFilter === 'teacher' ? 'NIP' : 'NIS', 'Kelas', 'Status'];
-        const rows = list.map((a) => [
-          a.fullName,
-          a.username,
-          a.email,
-          a.nipNis,
-          a.className,
-          a.isActive ? 'Aktif' : 'Nonaktif'
-        ]);
+        const headers =
+          roleFilter === 'teacher'
+            ? ['Nama Lengkap', 'Username', 'NIP', 'Email', 'Status']
+            : ['Nama Lengkap', 'Username', 'NIS', 'Email', 'Kelas', 'Status'];
+        const rows = list.map((a) =>
+          roleFilter === 'teacher'
+            ? [a.fullName, a.username, a.nipNis, a.email, a.isActive ? 'Aktif' : 'Nonaktif']
+            : [a.fullName, a.username, a.nipNis, a.email, a.className || '-', a.isActive ? 'Aktif' : 'Nonaktif']
+        );
 
         if (format === 'csv') {
           const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${c}"`).join(','))].join('\n');
@@ -4491,7 +4486,7 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                     <th className="py-3 px-4">Nama & Username</th>
                     <th className="py-3 px-4">{roleType === 'teacher' ? 'NIP' : 'NIS'}</th>
                     <th className="py-3 px-4">Email</th>
-                    <th className="py-3 px-4">{roleType === 'teacher' ? 'Wali Kelas' : 'Kelas'}</th>
+                    {roleType === 'student' && <th className="py-3 px-4">Kelas</th>}
                     <th className="py-3 px-4">Status</th>
                     <th className="py-3 px-4 text-right">Aksi</th>
                   </tr>
@@ -4505,7 +4500,9 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                       </td>
                       <td className="py-3 px-4 font-mono text-slate-300">{acc.nipNis}</td>
                       <td className="py-3 px-4 text-slate-300">{acc.email}</td>
-                      <td className="py-3 px-4 text-slate-300">{acc.className}</td>
+                      {roleType === 'student' && (
+                        <td className="py-3 px-4 text-slate-300">{acc.className || 'Semua Kelas'}</td>
+                      )}
                       <td className="py-3 px-4">
                         <button
                           onClick={async () => {
@@ -4697,7 +4694,12 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
 
               {adminMenuTab === 'classes' && (
                 <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/25 p-6 space-y-5">
-                  <h2 className="text-xl font-black text-white">Manajemen Data Kelas</h2>
+                  <div>
+                    <h2 className="text-xl font-black text-white">Manajemen Data Kelas</h2>
+                    <p className="text-xs text-slate-400">
+                      Semua guru dapat memberikan tugas/kuis ke seluruh siswa menggunakan kode room.
+                    </p>
+                  </div>
                   <form
                     onSubmit={async (e) => {
                       e.preventDefault();
@@ -4707,7 +4709,6 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                         name: newClassName.trim().toUpperCase(),
                         gradeLevel: newClassName.trim().split(' ')[0] || 'XI',
                         major: newClassMajor,
-                        homeroomTeacher: newClassTeacher,
                         academicYear: '2026/2027',
                         studentCount: 0,
                         isActive: true
@@ -4725,7 +4726,7 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                       setNewClassName('');
                       showToast(`Kelas ${created.name} berhasil ditambahkan!`, 'success');
                     }}
-                    className="grid sm:grid-cols-4 gap-3 p-4 rounded-2xl bg-[#070B19] border border-slate-800"
+                    className="grid sm:grid-cols-3 gap-3 p-4 rounded-2xl bg-[#070B19] border border-slate-800"
                   >
                     <input
                       type="text"
@@ -4742,17 +4743,6 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                       onChange={(e) => setNewClassMajor(e.target.value)}
                       className="px-3 py-2 rounded-xl bg-[#0D132B] border border-slate-700 text-white text-xs"
                     />
-                    <select
-                      value={newClassTeacher}
-                      onChange={(e) => setNewClassTeacher(e.target.value)}
-                      className="px-3 py-2 rounded-xl bg-[#0D132B] border border-slate-700 text-white text-xs"
-                    >
-                      {teachersList.map((t) => (
-                        <option key={t.id} value={t.fullName}>
-                          {t.fullName}
-                        </option>
-                      ))}
-                    </select>
                     <button
                       type="submit"
                       className="px-4 py-2 rounded-xl bg-emerald-400 text-slate-950 font-black text-xs cursor-pointer"
@@ -4771,7 +4761,7 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                           <div className="font-black text-white text-base">{cls.name}</div>
                           <div className="text-xs text-cyan-400">{cls.major}</div>
                           <div className="text-[11px] text-slate-400 mt-1">
-                            Wali: {cls.homeroomTeacher} • TA {cls.academicYear}
+                            Tahun Ajaran {cls.academicYear}
                           </div>
                         </div>
                         <button
@@ -4786,6 +4776,256 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                         </button>
                       </div>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {adminMenuTab === 'import' && (
+                <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/25 p-6 space-y-6">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h2 className="text-xl font-black text-white flex items-center gap-2">
+                        <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
+                        Import Data Guru & Siswa via Excel / CSV
+                      </h2>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Format wajib 5 kolom (1 kolom per masukan):{' '}
+                        <code className="text-cyan-300 font-bold">NAMA, USERNAME, NIP, EMAIL, PASSWORD</code>
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => downloadImportTemplate(importTargetRole, 'xlsx')}
+                        className="px-3.5 py-2 rounded-xl bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Download className="w-3.5 h-3.5" /> Template Excel (.XLSX)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => downloadImportTemplate(importTargetRole, 'csv')}
+                        className="px-3.5 py-2 rounded-xl bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Download className="w-3.5 h-3.5" /> Template CSV
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 gap-4 p-4 rounded-2xl bg-[#070B19] border border-slate-800">
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-400 block mb-1.5">
+                        1. Pilih Role Akun yang Diimpor
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { id: 'teacher', label: 'Data Guru' },
+                          { id: 'student', label: 'Data Siswa' }
+                        ].map((r) => (
+                          <button
+                            key={r.id}
+                            type="button"
+                            onClick={() => setImportTargetRole(r.id as 'teacher' | 'student')}
+                            className={`py-2.5 rounded-xl text-xs font-black border cursor-pointer ${
+                              importTargetRole === r.id
+                                ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300'
+                                : 'bg-[#0D132B] border-slate-700 text-slate-400'
+                            }`}
+                          >
+                            {r.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-400 block mb-1.5">
+                        2. Unggah File Excel (.xlsx / .xls / .csv)
+                      </label>
+                      <input
+                        type="file"
+                        accept=".xlsx,.xls,.csv,.txt"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleParseImportFile(file);
+                        }}
+                        className="w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-black file:bg-emerald-400 file:text-slate-950 cursor-pointer"
+                      />
+                    </div>
+                  </div>
+
+                  {importRawRows.length > 0 && (
+                    <div className="space-y-4">
+                      <div className="p-4 rounded-2xl bg-[#070B19] border border-cyan-500/30 space-y-3">
+                        <div className="text-xs font-black text-cyan-300">
+                          Pemetaan 5 Kolom ({importFileName}):
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+                          {[
+                            { key: 'fullName', label: 'Kolom NAMA' },
+                            { key: 'username', label: 'Kolom USERNAME' },
+                            { key: 'nipNis', label: 'Kolom NIP / NIS' },
+                            { key: 'email', label: 'Kolom EMAIL' },
+                            { key: 'password', label: 'Kolom PASSWORD' }
+                          ].map((m) => (
+                            <div key={m.key}>
+                              <label className="text-[10px] text-slate-400 block mb-1">{m.label}</label>
+                              <select
+                                value={(colMap as any)[m.key]}
+                                onChange={(e) =>
+                                  setColMap({ ...colMap, [m.key]: Number(e.target.value) })
+                                }
+                                className="w-full px-2.5 py-1.5 rounded-lg bg-[#0D132B] border border-slate-700 text-white"
+                              >
+                                {importRawHeaders.map((h, i) => (
+                                  <option key={i} value={i}>
+                                    #{i + 1}: {h}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="overflow-x-auto rounded-2xl border border-slate-800">
+                        <table className="w-full text-left text-xs">
+                          <thead>
+                            <tr className="bg-[#070B19] border-b border-slate-800 text-slate-400 uppercase">
+                              <th className="py-2.5 px-3">Baris</th>
+                              <th className="py-2.5 px-3">NAMA</th>
+                              <th className="py-2.5 px-3">USERNAME</th>
+                              <th className="py-2.5 px-3">NIP / NIS</th>
+                              <th className="py-2.5 px-3">EMAIL</th>
+                              <th className="py-2.5 px-3">PASSWORD</th>
+                              <th className="py-2.5 px-3">Validasi</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800/60">
+                            {validatedImportRows.map((r) => (
+                              <tr key={r.rowNum} className="bg-[#070B19]/60">
+                                <td className="py-2.5 px-3 font-mono text-slate-400">#{r.rowNum}</td>
+                                <td className="py-2.5 px-3 font-bold text-white">{r.fullName || '-'}</td>
+                                <td className="py-2.5 px-3 font-mono text-cyan-300">{r.username || '-'}</td>
+                                <td className="py-2.5 px-3 font-mono text-slate-300">{r.nipNis || '-'}</td>
+                                <td className="py-2.5 px-3 text-slate-300">{r.email || '-'}</td>
+                                <td className="py-2.5 px-3 font-mono text-slate-400">
+                                  {r.password ? '•'.repeat(Math.min(10, r.password.length)) : '-'}
+                                </td>
+                                <td className="py-2.5 px-3">
+                                  {r.isValid ? (
+                                    <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">
+                                      Valid ✓
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 font-bold">
+                                      {r.errors.join(', ')}
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <span className="text-xs text-slate-300">
+                          Valid: <strong className="text-emerald-400">{validatedImportRows.filter((r) => r.isValid).length}</strong> dari{' '}
+                          {validatedImportRows.length} baris
+                        </span>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setImportRawRows([]);
+                              setImportFileName('');
+                            }}
+                            className="px-4 py-2.5 rounded-xl bg-white/10 text-xs font-bold text-slate-300 cursor-pointer"
+                          >
+                            Batalkan
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isImportingServer}
+                            onClick={handleExecuteValidImport}
+                            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 font-black text-xs cursor-pointer disabled:opacity-50"
+                          >
+                            {isImportingServer ? 'Memproses ke Supabase...' : 'Import Data Valid Sekarang'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {adminMenuTab === 'export' && (
+                <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/25 p-6 space-y-5">
+                  <h2 className="text-xl font-black text-white">Export Laporan Data Sekolah & Hasil Kuis</h2>
+                  <div className="grid sm:grid-cols-3 gap-4">
+                    <div className="p-4 rounded-2xl bg-[#070B19] border border-slate-800 space-y-3">
+                      <div className="font-bold text-white text-sm">Data Guru ({teachersList.length})</div>
+                      <div className="flex flex-wrap gap-2">
+                        <button onClick={() => exportAccountsReport('teacher', 'xlsx')} className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 text-xs font-bold cursor-pointer">XLSX</button>
+                        <button onClick={() => exportAccountsReport('teacher', 'csv')} className="px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 text-xs font-bold cursor-pointer">CSV</button>
+                        <button onClick={() => exportAccountsReport('teacher', 'docx')} className="px-3 py-1.5 rounded-lg bg-purple-500/20 text-purple-300 text-xs font-bold cursor-pointer">DOCX</button>
+                      </div>
+                    </div>
+                    <div className="p-4 rounded-2xl bg-[#070B19] border border-slate-800 space-y-3">
+                      <div className="font-bold text-white text-sm">Data Siswa ({studentsList.length})</div>
+                      <div className="flex flex-wrap gap-2">
+                        <button onClick={() => exportAccountsReport('student', 'xlsx')} className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 text-xs font-bold cursor-pointer">XLSX</button>
+                        <button onClick={() => exportAccountsReport('student', 'csv')} className="px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 text-xs font-bold cursor-pointer">CSV</button>
+                        <button onClick={() => exportAccountsReport('student', 'docx')} className="px-3 py-1.5 rounded-lg bg-purple-500/20 text-purple-300 text-xs font-bold cursor-pointer">DOCX</button>
+                      </div>
+                    </div>
+                    <div className="p-4 rounded-2xl bg-[#070B19] border border-slate-800 space-y-3">
+                      <div className="font-bold text-white text-sm">Rekap Hasil Kuis ({filteredResults.length})</div>
+                      <div className="flex flex-wrap gap-2">
+                        <button onClick={() => exportQuizResults('xlsx')} className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 text-xs font-bold cursor-pointer">XLSX</button>
+                        <button onClick={() => exportQuizResults('csv')} className="px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 text-xs font-bold cursor-pointer">CSV</button>
+                        <button onClick={() => exportQuizResults('docx')} className="px-3 py-1.5 rounded-lg bg-purple-500/20 text-purple-300 text-xs font-bold cursor-pointer">DOCX</button>
+                        <button onClick={() => exportQuizResults('pdf')} className="px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 text-xs font-bold cursor-pointer">PDF</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {adminMenuTab === 'results' && (
+                <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/25 p-6 space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h2 className="text-xl font-black text-white">Hasil Kuis Siswa ({filteredResults.length})</h2>
+                    <div className="flex gap-2">
+                      <button onClick={() => exportQuizResults('xlsx')} className="px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-300 text-xs font-bold cursor-pointer">Export XLSX</button>
+                      <button onClick={() => exportQuizResults('pdf')} className="px-3 py-1.5 rounded-xl bg-amber-500/20 text-amber-300 text-xs font-bold cursor-pointer">Cetak PDF</button>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="bg-[#070B19] border-b border-slate-800 text-slate-400 uppercase">
+                          <th className="py-3 px-3">Rank</th>
+                          <th className="py-3 px-3">Nama Siswa</th>
+                          <th className="py-3 px-3">Game</th>
+                          <th className="py-3 px-3">Guru</th>
+                          <th className="py-3 px-3">Skor</th>
+                          <th className="py-3 px-3">Benar/Salah</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60">
+                        {filteredResults.map((r) => (
+                          <tr key={r.id}>
+                            <td className="py-3 px-3 font-black text-cyan-400">#{r.rank}</td>
+                            <td className="py-3 px-3 font-bold text-white">{r.studentName}</td>
+                            <td className="py-3 px-3 text-slate-300">{r.gameTitle}</td>
+                            <td className="py-3 px-3 text-slate-400">{r.teacherName}</td>
+                            <td className="py-3 px-3 font-mono font-bold text-amber-300">{r.score}</td>
+                            <td className="py-3 px-3 text-emerald-400">{r.correctCount}✓ / {r.wrongCount}✗</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               )}
@@ -5008,7 +5248,7 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                       email: cleanEmail,
                       nipNis: formAccNipNis.trim(),
                       role: newAccModalOpen,
-                      className: formAccClass,
+                      className: newAccModalOpen === 'student' ? formAccClass : '',
                       isActive: true,
                       createdAt: new Date().toISOString().slice(0, 10)
                     };
@@ -5057,15 +5297,17 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                     onChange={(e) => setFormAccNipNis(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs font-mono"
                   />
-                  <select
-                    value={formAccClass}
-                    onChange={(e) => setFormAccClass(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs"
-                  >
-                    {schoolClasses.map((c) => (
-                      <option key={c.id} value={c.name}>{c.name}</option>
-                    ))}
-                  </select>
+                  {newAccModalOpen === 'student' && (
+                    <select
+                      value={formAccClass}
+                      onChange={(e) => setFormAccClass(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs"
+                    >
+                      {schoolClasses.map((c) => (
+                        <option key={c.id} value={c.name}>{c.name}</option>
+                      ))}
+                    </select>
+                  )}
                   <button
                     type="submit"
                     className="w-full py-3 rounded-xl bg-emerald-400 text-slate-950 font-black text-xs cursor-pointer"
