@@ -1443,6 +1443,108 @@ export default function App() {
   const [newRoomDuration, setNewRoomDuration] = useState(20);
   const [newRoomDifficulty, setNewRoomDifficulty] = useState<'Mudah' | 'Sedang' | 'Sulit'>('Sedang');
 
+  // Gate Keamanan untuk Akses Panel Konfigurasi Supabase (Wajib Sandi Admin / Super Admin)
+  const [showSupabaseAuthGate, setShowSupabaseAuthGate] = useState(false);
+  const [sbGateIdentifier, setSbGateIdentifier] = useState('');
+  const [sbGatePassword, setSbGatePassword] = useState('');
+  const [sbGateVerifying, setSbGateVerifying] = useState(false);
+
+  const handleOpenProtectedSupabaseSetup = () => {
+    if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin')) {
+      setActivePage('supabase-guide');
+      return;
+    }
+    setSbGateIdentifier(currentUser?.email || '');
+    setSbGatePassword('');
+    setShowSupabaseAuthGate(true);
+  };
+
+  const handleVerifySupabaseGate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const rawId = sbGateIdentifier.trim();
+    if (!rawId || sbGatePassword.length < 6) {
+      showToast('Masukkan username/email Admin dan kata sandi minimal 6 karakter.', 'error');
+      return;
+    }
+
+    if (!sbClient) {
+      showToast('Kredensial Supabase ENV belum terpasang di server ini.', 'error');
+      return;
+    }
+
+    setSbGateVerifying(true);
+    try {
+      let resolvedEmail = rawId;
+      let resolvedProfile: any = null;
+
+      if (!rawId.includes('@')) {
+        const { data: profData, error: profErr } = await sbClient
+          .from('profiles')
+          .select('*')
+          .eq('username', rawId.toLowerCase())
+          .single();
+
+        if (profErr || !profData?.email) {
+          showToast('Username Admin/Super Admin tidak ditemukan.', 'error');
+          return;
+        }
+        resolvedEmail = profData.email;
+        resolvedProfile = profData;
+      }
+
+      const { data: authData, error: authErr } = await sbClient.auth.signInWithPassword({
+        email: resolvedEmail,
+        password: sbGatePassword
+      });
+
+      if (authErr || !authData?.user) {
+        showToast('Kata sandi Admin/Super Admin tidak valid.', 'error');
+        return;
+      }
+
+      if (!resolvedProfile) {
+        const { data: pRow } = await sbClient
+          .from('profiles')
+          .select('*')
+          .eq('id', authData.user.id)
+          .single();
+        resolvedProfile = pRow;
+      }
+
+      const roleCode = String(
+        resolvedProfile?.role_code || authData.user.user_metadata?.role || ''
+      ).toLowerCase();
+
+      if (roleCode !== 'admin' && roleCode !== 'super_admin') {
+        showToast('Akses ditolak! Hanya role Admin atau Super Admin yang diizinkan.', 'error');
+        return;
+      }
+
+      if (resolvedProfile?.is_active === false) {
+        showToast('Akun Admin berstatus nonaktif.', 'error');
+        return;
+      }
+
+      setCurrentUser({
+        uid: authData.user.id,
+        username: resolvedProfile?.username || resolvedEmail.split('@')[0],
+        name: resolvedProfile?.full_name || 'Administrator',
+        email: resolvedEmail,
+        role: roleCode as 'admin' | 'super_admin',
+        avatar: roleCode === 'super_admin' ? '👑' : '🛡️',
+        xp: Number(resolvedProfile?.total_xp) || 9999,
+        wins: Number(resolvedProfile?.total_wins) || 50
+      });
+
+      setShowSupabaseAuthGate(false);
+      setSbGatePassword('');
+      setActivePage('supabase-guide');
+      showToast('Verifikasi Admin berhasil. Panel konfigurasi Supabase dibuka.', 'success');
+    } finally {
+      setSbGateVerifying(false);
+    }
+  };
+
   // Admin & School Dashboard States (Top-level hooks to prevent React Hook order crash on login)
   const [accountSearch, setAccountSearch] = useState('');
   const [accountPage, setAccountPage] = useState(1);
@@ -2487,14 +2589,15 @@ export default function App() {
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setActivePage('supabase-guide')}
-              title="Status Koneksi & SQL Supabase"
+              onClick={handleOpenProtectedSupabaseSetup}
+              title="Dilindungi Sandi Admin / Super Admin"
               className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold border cursor-pointer ${
                 isSupabaseConnected
                   ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
                   : 'bg-amber-500/10 text-amber-300 border-amber-500/30'
               }`}
             >
+              <Lock className="w-3 h-3" />
               <span
                 className={`w-2 h-2 rounded-full ${
                   isSupabaseConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
@@ -2569,7 +2672,13 @@ export default function App() {
             return (
               <button
                 key={item.id}
-                onClick={() => setActivePage(item.id as any)}
+                onClick={() => {
+                  if (item.id === 'supabase-guide') {
+                    handleOpenProtectedSupabaseSetup();
+                  } else {
+                    setActivePage(item.id as any);
+                  }
+                }}
                 className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg text-[10px] font-bold ${
                   activePage === item.id ? 'text-cyan-400' : 'text-slate-400'
                 }`}
@@ -6650,10 +6759,97 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
         {activePage === 'lobby' && MultiplayerLobby()}
         {activePage === 'game' && <LiveGameArena />}
         {activePage === 'results' && GameResultsPage()}
-        {activePage === 'supabase-guide' && SupabaseGuidePage()}
+        {activePage === 'supabase-guide' &&
+          (currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin') ? (
+            SupabaseGuidePage()
+          ) : (
+            <div className="max-w-md mx-auto px-4 py-16 text-center space-y-4">
+              <Lock className="w-12 h-12 text-amber-400 mx-auto" />
+              <h2 className="text-xl font-black text-white">Panel Supabase Terkunci</h2>
+              <p className="text-xs text-slate-400">
+                Verifikasi akun Admin atau Super Admin diperlukan untuk membuka pengaturan Supabase.
+              </p>
+              <button
+                onClick={handleOpenProtectedSupabaseSetup}
+                className="px-5 py-2.5 rounded-xl bg-amber-400 text-slate-950 font-black text-xs cursor-pointer"
+              >
+                Verifikasi Sandi Admin
+              </button>
+            </div>
+          ))}
       </main>
 
       {CreateRoomModal()}
+
+      {/* Modal Verifikasi Sandi Admin / Super Admin untuk Tombol Supabase Live */}
+      {showSupabaseAuthGate && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-3xl bg-[#0D132B] border border-emerald-500/40 p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-black text-white flex items-center gap-2">
+                <Shield className="w-5 h-5 text-emerald-400" />
+                Verifikasi Admin / Super Admin
+              </h3>
+              <button
+                onClick={() => setShowSupabaseAuthGate(false)}
+                className="text-slate-400 hover:text-white font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Demi keamanan konfigurasi backend, masukkan username/email dan kata sandi{' '}
+              <strong className="text-emerald-300">Admin</strong> atau{' '}
+              <strong className="text-amber-300">Super Admin</strong> untuk mengakses pengaturan Supabase.
+            </p>
+            <form onSubmit={handleVerifySupabaseGate} className="space-y-3">
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                  Username atau Email Admin / Super Admin
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="admin_darulfikri atau admin@darulfikri.sch.id"
+                  value={sbGateIdentifier}
+                  onChange={(e) => setSbGateIdentifier(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                  Kata Sandi Admin / Super Admin
+                </label>
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  placeholder="Masukkan kata sandi..."
+                  value={sbGatePassword}
+                  onChange={(e) => setSbGatePassword(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs"
+                />
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowSupabaseAuthGate(false)}
+                  className="px-4 py-2.5 rounded-xl bg-white/10 text-slate-300 text-xs font-bold cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={sbGateVerifying}
+                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 font-black text-xs cursor-pointer disabled:opacity-50"
+                >
+                  {sbGateVerifying ? 'Memverifikasi...' : 'Buka Panel Supabase'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Modal Bootstrap Super Admin (admin_darulfikri) via Server-Side Edge Function */}
       {showBootstrapModal && (
