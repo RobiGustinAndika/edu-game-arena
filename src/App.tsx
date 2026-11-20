@@ -222,7 +222,16 @@ const createClient = (url: string, anonKey: string, _opts?: any): SupabaseClient
             headers: { ...headers(), Prefer: 'resolution=merge-duplicates,return=representation' },
             body: JSON.stringify(payload)
           });
-          return { data: res.ok ? await res.json() : null, error: res.ok ? null : { message: res.statusText } };
+          if (!res.ok) {
+            const errBody = await res.json().catch(() => null);
+            return {
+              data: null,
+              error: {
+                message: errBody?.message || errBody?.hint || `${res.status} ${res.statusText}`
+              }
+            };
+          }
+          return { data: await res.json(), error: null };
         } catch (err) {
           return { data: null, error: err };
         }
@@ -5348,7 +5357,7 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                       });
                       if (saveErr) {
                         showToast(
-                          'Tersimpan di browser ini, tetapi gagal sinkron ke Supabase: jalankan SQL tabel site_settings terlebih dahulu.',
+                          `Gagal simpan ke Supabase (${saveErr.message || 'cek SQL site_settings & RLS'}).`,
                           'error'
                         );
                         return;
