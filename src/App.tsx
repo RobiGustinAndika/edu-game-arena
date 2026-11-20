@@ -1802,7 +1802,7 @@ function EduGameArenaMain() {
           .select('config')
           .eq('id', 'main')
           .single();
-        if (dbSite?.config) {
+        if (dbSite?.config && Object.keys(dbSite.config).length > 0) {
           const merged = { ...DEFAULT_SITE_SETTINGS, ...dbSite.config };
           setSiteSettings(merged);
           setDraftSiteSettings(merged);
@@ -1811,58 +1811,12 @@ function EduGameArenaMain() {
           } catch {
             // ignore
           }
-        }
-
-        const { data: dbCategories } = await sbClient
-          .from('game_categories')
-          .select('name')
-          .order('created_at', { ascending: true });
-        if (dbCategories && dbCategories.length > 0) {
-          const names = dbCategories.map((c: any) => c.name).filter(Boolean);
-          if (names.length > 0) setLessonCategories(names);
-        }
-
-        const { data: dbGames } = await sbClient
-          .from('games')
-          .select('*, game_questions(*)');
-        if (dbGames && dbGames.length > 0) {
-          const mapped: GameCatalogItem[] = dbGames.map((g: any) => ({
-            id: g.id,
-            ownerId: g.owner_id,
-            creatorName: g.creator_name,
-            title: g.title,
-            templateType: g.template_code,
-            category: g.category_name,
-            subject: g.subject_name,
-            gradeLevel: g.grade_level || 'Kelas XI',
-            description: g.description || '',
-            thumbnailUrl: g.thumbnail_url,
-            minPlayers: 1,
-            maxPlayers: 40,
-            difficulty: g.difficulty || 'Sedang',
-            status: g.status || 'published',
-            playable: true,
-            accentColor: 'from-cyan-500 to-blue-600',
-            badge: 'SUPABASE LIVE',
-            iconType: 'swords',
-            playsCount: g.plays_count || 0,
-            rating: Number(g.rating) || 5.0,
-            multiplayerConfig: g.multiplayer_config || DEFAULT_MULTIPLAYER_CONFIG,
-            questions: (g.game_questions || []).map((q: any) => ({
-              id: q.id,
-              prompt: q.prompt,
-              imageUrl: q.image_url,
-              points: q.points,
-              durationSec: q.duration_sec,
-              ...(q.content_payload || {})
-            })),
-            createdAt: new Date(g.created_at).getTime()
-          }));
-          setGames((prev) => {
-            const map = new Map<string, GameCatalogItem>();
-            INITIAL_GAMES.forEach((ig) => map.set(ig.id, ig));
-            mapped.forEach((mg) => map.set(mg.id, mg));
-            return Array.from(map.values());
+        } else if (sbClient && Object.keys(siteSettings).length > 0) {
+          // Sinkronkan pengaturan lokal yang sudah diubah ke Supabase jika row 'main' masih kosong
+          await sbClient.from('site_settings').upsert({
+            id: 'main',
+            config: siteSettings,
+            updated_at: new Date().toISOString()
           });
         }
 
@@ -1877,23 +1831,40 @@ function EduGameArenaMain() {
             name: item.player_name,
             role: 'student',
             avatar: item.avatar || '🎮',
-            totalScore: item.total_score,
-            xp: item.total_xp,
-            wins: item.wins,
+            totalScore: Number(item.total_score) || 0,
+            xp: Number(item.total_xp) || 0,
+            wins: Number(item.wins) || 0,
             period: 'keseluruhan'
           }));
-          setLeaderboard([...mappedLb, ...DEFAULT_LEADERBOARD].slice(0, 15));
+          setLeaderboard(mappedLb);
         }
-      } catch (err) {
-        console.warn('Tabel Supabase belum dimigrasi sepenuhnya, menggunakan data bawaan.', err);
+      } catch {
+        // Fallback ke state lokal jika tabel belum dimigrasi
       }
     };
 
     fetchInitialSupabaseData();
 
-    // Realtime Subscription untuk tabel games & game_rooms
+    // Realtime Subscription untuk tabel games, game_rooms & site_settings
     const globalChannel = sbClient
       .channel('edu-game-arena-global')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'site_settings' },
+        (payload) => {
+          const updatedRow = payload.new as any;
+          if (updatedRow?.id === 'main' && updatedRow?.config) {
+            const merged = { ...DEFAULT_SITE_SETTINGS, ...updatedRow.config };
+            setSiteSettings(merged);
+            setDraftSiteSettings(merged);
+            try {
+              localStorage.setItem(SITE_SETTINGS_STORAGE_KEY, JSON.stringify(merged));
+            } catch {
+              // ignore
+            }
+          }
+        }
+      )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'game_rooms' },
@@ -5370,21 +5341,30 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                       // ignore
                     }
                     if (sbClient) {
-                      try {
-                        await sbClient.from('site_settings').upsert({
-                          id: 'main',
-                          config: draftSiteSettings,
-                          updated_at: new Date().toISOString()
-                        });
-                      } catch {
-                        // fallback localStorage if table not yet migrated
+                      const { error: saveErr } = await sbClient.from('site_settings').upsert({
+                        id: 'main',
+                        config: draftSiteSettings,
+                        updated_at: new Date().toISOString()
+                      });
+                      if (saveErr) {
+                        showToast(
+                          'Tersimpan di browser ini, tetapi gagal sinkron ke Supabase: jalankan SQL tabel site_settings terlebih dahulu.',
+                          'error'
+                        );
+                        return;
                       }
+                    } else {
+                      showToast(
+                        'Tersimpan di browser ini saja (Supabase belum terhubung sehingga perangkat lain belum berubah).',
+                        'error'
+                      );
+                      return;
                     }
                     await recordAuditLog('UPDATE_PORTAL_APPEARANCE', 'site_settings', {
                       brandTitle: draftSiteSettings.brandTitle,
                       homeGamesLimit: draftSiteSettings.homeGamesLimit
                     });
-                    showToast('Pengaturan tampilan beranda, logo & teks berhasil disimpan!', 'success');
+                    showToast('Berhasil disimpan ke Supabase! Semua perangkat kini menampilkan teks terbaru.', 'success');
                   }}
                   className="space-y-6"
                 >
