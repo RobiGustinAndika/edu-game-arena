@@ -1441,6 +1441,40 @@ export default function App() {
   const [newRoomDuration, setNewRoomDuration] = useState(20);
   const [newRoomDifficulty, setNewRoomDifficulty] = useState<'Mudah' | 'Sedang' | 'Sulit'>('Sedang');
 
+  // Admin & School Dashboard States (Top-level hooks to prevent React Hook order crash on login)
+  const [accountSearch, setAccountSearch] = useState('');
+  const [accountPage, setAccountPage] = useState(1);
+  const [newAccModalOpen, setNewAccModalOpen] = useState<'teacher' | 'student' | null>(null);
+  const [formAccFullName, setFormAccFullName] = useState('');
+  const [formAccUsername, setFormAccUsername] = useState('');
+  const [formAccEmail, setFormAccEmail] = useState('');
+  const [formAccNipNis, setFormAccNipNis] = useState('');
+  const [formAccClass, setFormAccClass] = useState('XI RPL 1');
+
+  const [newClassName, setNewClassName] = useState('');
+  const [newClassMajor, setNewClassMajor] = useState('Rekayasa Perangkat Lunak');
+  const [newClassTeacher, setNewClassTeacher] = useState('Bapak Budi Santoso, S.Kom');
+
+  const [resSearch, setResSearch] = useState('');
+  const [resClassFilter, setResClassFilter] = useState('Semua');
+  const [resTeacherFilter, setResTeacherFilter] = useState('Semua');
+  const [resGameFilter, setResGameFilter] = useState('Semua');
+  const [resDateFilter, setResDateFilter] = useState('');
+  const [resPage, setResPage] = useState(1);
+
+  const [importTargetRole, setImportTargetRole] = useState<'teacher' | 'student'>('student');
+  const [importFileName, setImportFileName] = useState('');
+  const [importRawHeaders, setImportRawHeaders] = useState<string[]>([]);
+  const [importRawRows, setImportRawRows] = useState<string[][]>([]);
+  const [colMap, setColMap] = useState<{
+    fullName: number;
+    username: number;
+    email: number;
+    nipNis: number;
+    className: number;
+  }>({ fullName: 0, username: 1, email: 2, nipNis: 3, className: 4 });
+  const [isImportingServer, setIsImportingServer] = useState(false);
+
   // ==========================================================================
   // 5. EFEK SUPABASE AUTH & REALTIME SUBSCRIPTIONS (POSTGRES + PRESENCE + BROADCAST)
   // ==========================================================================
@@ -2209,9 +2243,17 @@ export default function App() {
       return;
     }
 
-    const actualRole = (resolvedProfile?.role_code ||
-      data.user.user_metadata?.role ||
-      loginTab) as 'super_admin' | 'admin' | 'teacher' | 'student';
+    const rawRole = String(
+      resolvedProfile?.role_code || data.user.user_metadata?.role || loginTab || 'teacher'
+    ).toLowerCase();
+    const actualRole: 'super_admin' | 'admin' | 'teacher' | 'student' =
+      rawRole === 'super_admin'
+        ? 'super_admin'
+        : rawRole === 'admin'
+        ? 'admin'
+        : rawRole === 'student'
+        ? 'student'
+        : 'teacher';
 
     const displayName =
       resolvedProfile?.full_name ||
@@ -2230,8 +2272,8 @@ export default function App() {
       email: resolvedEmail,
       role: actualRole,
       avatar: actualRole === 'super_admin' ? '👑' : actualRole === 'admin' ? '🛡️' : '👨‍🏫',
-      xp: resolvedProfile?.total_xp || 9999,
-      wins: resolvedProfile?.total_wins || 50
+      xp: Number(resolvedProfile?.total_xp) || 9999,
+      wins: Number(resolvedProfile?.total_wins) || 50
     });
 
     setAdminMenuTab('overview');
@@ -3842,42 +3884,6 @@ export default function App() {
   // 13. DASHBOARD ROLE (TEACHER, ADMIN, SUPER_ADMIN, STUDENT)
   // ==========================================================================
   const RoleDashboard = () => {
-    const [accountSearch, setAccountSearch] = useState('');
-    const [accountPage, setAccountPage] = useState(1);
-    const [newAccModalOpen, setNewAccModalOpen] = useState<'teacher' | 'student' | null>(null);
-    const [formAccFullName, setFormAccFullName] = useState('');
-    const [formAccUsername, setFormAccUsername] = useState('');
-    const [formAccEmail, setFormAccEmail] = useState('');
-    const [formAccNipNis, setFormAccNipNis] = useState('');
-    const [formAccClass, setFormAccClass] = useState('XI RPL 1');
-
-    // Class CRUD states
-    const [newClassName, setNewClassName] = useState('');
-    const [newClassMajor, setNewClassMajor] = useState('Rekayasa Perangkat Lunak');
-    const [newClassTeacher, setNewClassTeacher] = useState('Bapak Budi Santoso, S.Kom');
-
-    // Quiz Results Filters & Pagination
-    const [resSearch, setResSearch] = useState('');
-    const [resClassFilter, setResClassFilter] = useState('Semua');
-    const [resTeacherFilter, setResTeacherFilter] = useState('Semua');
-    const [resGameFilter, setResGameFilter] = useState('Semua');
-    const [resDateFilter, setResDateFilter] = useState('');
-    const [resPage, setResPage] = useState(1);
-
-    // Import Data Wizard States
-    const [importTargetRole, setImportTargetRole] = useState<'teacher' | 'student'>('student');
-    const [importFileName, setImportFileName] = useState('');
-    const [importRawHeaders, setImportRawHeaders] = useState<string[]>([]);
-    const [importRawRows, setImportRawRows] = useState<string[][]>([]);
-    const [colMap, setColMap] = useState<{
-      fullName: number;
-      username: number;
-      email: number;
-      nipNis: number;
-      className: number;
-    }>({ fullName: 0, username: 1, email: 2, nipNis: 3, className: 4 });
-    const [isImportingServer, setIsImportingServer] = useState(false);
-
     if (!currentUser) return null;
 
     if (currentUser.role === 'teacher') {
