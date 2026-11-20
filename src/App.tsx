@@ -1363,6 +1363,8 @@ export default function App() {
 
   // Catalog, Admin Management & School Data State
   const [games, setGames] = useState<GameCatalogItem[]>(INITIAL_GAMES);
+  const [lessonCategories, setLessonCategories] = useState<string[]>(LESSON_CATEGORIES);
+  const [newCategoryInput, setNewCategoryInput] = useState('');
   const [allRooms, setAllRooms] = useState<GameRoom[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>(DEFAULT_LEADERBOARD);
   const [leaderboardFilter, setLeaderboardFilter] = useState<'harian' | 'mingguan' | 'keseluruhan'>('keseluruhan');
@@ -1508,6 +1510,15 @@ export default function App() {
     // Fetch awal daftar games & leaderboard dari PostgreSQL
     const fetchInitialSupabaseData = async () => {
       try {
+        const { data: dbCategories } = await sbClient
+          .from('game_categories')
+          .select('name')
+          .order('created_at', { ascending: true });
+        if (dbCategories && dbCategories.length > 0) {
+          const names = dbCategories.map((c: any) => c.name).filter(Boolean);
+          if (names.length > 0) setLessonCategories(names);
+        }
+
         const { data: dbGames } = await sbClient
           .from('games')
           .select('*, game_questions(*)');
@@ -3218,7 +3229,7 @@ export default function App() {
                   onChange={(e) => setEditingGame({ ...editingGame, category: e.target.value })}
                   className="w-full px-3.5 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs"
                 >
-                  {LESSON_CATEGORIES.map((c) => (
+                  {lessonCategories.map((c) => (
                     <option key={c} value={c}>{c}</option>
                   ))}
                 </select>
@@ -4671,384 +4682,144 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
               )}
 
               {adminMenuTab === 'games' && (
-                <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/25 p-6 space-y-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <h2 className="text-xl font-black text-white">Manajemen Seluruh Game ({games.length})</h2>
-                    <button
-                      onClick={() => {
-                        setCreatorSubView('list');
-                        setActivePage('creator');
-                      }}
-                      className="px-4 py-2.5 rounded-xl bg-cyan-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <Wand2 className="w-4 h-4" /> Buka Game Creator Studio
-                    </button>
-                  </div>
+                <div className="space-y-6">
+                  {/* Manajemen Kategori Pelajaran oleh Admin & Super Admin */}
+                  <div className="rounded-3xl bg-[#0D132B] border border-cyan-500/25 p-6 space-y-4">
+                    <div>
+                      <h2 className="text-lg font-black text-white">Manajemen Kategori Pelajaran</h2>
+                      <p className="text-xs text-slate-400">
+                        Tambah atau hapus kategori pelajaran yang tersedia di Game Creator Studio dan filter Katalog Game.
+                      </p>
+                    </div>
 
-                  <div className="grid md:grid-cols-2 gap-4">
-                    {games.map((g) => (
-                      <div
-                        key={g.id}
-                        className="p-4 rounded-2xl bg-[#070B19] border border-slate-800 flex items-center justify-between gap-3"
+                    <form
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        const cleanCat = newCategoryInput.trim();
+                        if (!cleanCat) return;
+                        if (lessonCategories.some((c) => c.toLowerCase() === cleanCat.toLowerCase())) {
+                          showToast('Kategori pelajaran tersebut sudah ada.', 'error');
+                          return;
+                        }
+                        setLessonCategories((prev) => [...prev, cleanCat]);
+                        setNewCategoryInput('');
+                        if (sbClient) {
+                          const slug = cleanCat
+                            .toLowerCase()
+                            .replace(/[^a-z0-9]+/g, '-')
+                            .replace(/^-|-$/g, '');
+                          await sbClient.from('game_categories').insert({
+                            name: cleanCat,
+                            slug: `${slug}-${Date.now().toString().slice(-4)}`
+                          });
+                        }
+                        await recordAuditLog('CREATE_CATEGORY', 'game_categories', { name: cleanCat });
+                        showToast(`Kategori "${cleanCat}" berhasil ditambahkan!`, 'success');
+                      }}
+                      className="flex flex-col sm:flex-row gap-2.5"
+                    >
+                      <input
+                        type="text"
+                        required
+                        placeholder="Nama kategori baru (mis: Game Desain Grafis)"
+                        value={newCategoryInput}
+                        onChange={(e) => setNewCategoryInput(e.target.value)}
+                        className="flex-1 px-4 py-2.5 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs focus:outline-none focus:border-cyan-400"
+                      />
+                      <button
+                        type="submit"
+                        className="px-5 py-2.5 rounded-xl bg-emerald-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer"
                       >
-                        <div>
-                          <div className="font-bold text-white text-sm">{g.title}</div>
-                          <div className="text-[11px] text-slate-400">
-                            {g.creatorName} • {g.category} • {g.questions.length} Soal
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1.5">
+                        <Plus className="w-4 h-4" /> Tambah Kategori
+                      </button>
+                    </form>
+
+                    <div className="flex flex-wrap gap-2">
+                      {lessonCategories.map((cat) => (
+                        <div
+                          key={cat}
+                          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#070B19] border border-indigo-500/30 text-xs font-bold text-slate-200"
+                        >
+                          <span>{cat}</span>
                           <button
+                            type="button"
+                            title={`Hapus kategori ${cat}`}
                             onClick={async () => {
-                              const nextStatus = g.status === 'published' ? 'disabled' : 'published';
-                              await persistGameToDatabase({ ...g, status: nextStatus });
-                              await recordAuditLog('TOGGLE_GAME_STATUS', 'games', { title: g.title, status: nextStatus });
-                              showToast(`Status game "${g.title}" diubah menjadi ${nextStatus}.`, 'info');
+                              if (lessonCategories.length <= 1) {
+                                showToast('Minimal harus tersisa 1 kategori pelajaran.', 'error');
+                                return;
+                              }
+                              setLessonCategories((prev) => prev.filter((item) => item !== cat));
+                              if (sbClient) {
+                                await sbClient.from('game_categories').delete().eq('name', cat);
+                              }
+                              await recordAuditLog('DELETE_CATEGORY', 'game_categories', { name: cat });
+                              showToast(`Kategori "${cat}" telah dihapus.`, 'info');
                             }}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer ${
-                              g.status === 'published'
-                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                : 'bg-slate-800 text-slate-400'
-                            }`}
-                          >
-                            {g.status === 'published' ? 'Aktif' : 'Nonaktif'}
-                          </button>
-                          <button
-                            onClick={async () => {
-                              await deleteGameFromDatabase(g.id);
-                              await recordAuditLog('DELETE_GAME', 'games', { title: g.title });
-                              showToast(`Game "${g.title}" dihapus.`, 'info');
-                            }}
-                            className="p-2 rounded-xl bg-rose-500/15 text-rose-300 cursor-pointer"
+                            className="text-rose-400 hover:text-rose-300 p-0.5 rounded cursor-pointer"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {adminMenuTab === 'results' && (
-                <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/25 p-6 space-y-5">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h2 className="text-xl font-black text-white">Halaman Hasil Kuis & Evaluasi</h2>
-                      <p className="text-xs text-slate-400">
-                        Filter berdasarkan kelas, guru, game, dan tanggal serta unduh laporan resmi.
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {(['xlsx', 'csv', 'docx', 'pdf'] as const).map((fmt) => (
-                        <button
-                          key={fmt}
-                          onClick={() => exportQuizResults(fmt)}
-                          className="px-3 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 text-xs font-bold uppercase cursor-pointer"
-                        >
-                          Unduh {fmt}
-                        </button>
                       ))}
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
-                    <input
-                      type="text"
-                      placeholder="Cari siswa / game..."
-                      value={resSearch}
-                      onChange={(e) => setResSearch(e.target.value)}
-                      className="px-3 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs"
-                    />
-                    <select
-                      value={resClassFilter}
-                      onChange={(e) => setResClassFilter(e.target.value)}
-                      className="px-3 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs"
-                    >
-                      <option value="Semua">Semua Kelas</option>
-                      {schoolClasses.map((c) => (
-                        <option key={c.id} value={c.name}>{c.name}</option>
-                      ))}
-                    </select>
-                    <select
-                      value={resTeacherFilter}
-                      onChange={(e) => setResTeacherFilter(e.target.value)}
-                      className="px-3 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs"
-                    >
-                      <option value="Semua">Semua Guru</option>
-                      {teachersList.map((t) => (
-                        <option key={t.id} value={t.fullName}>{t.fullName}</option>
-                      ))}
-                    </select>
-                    <select
-                      value={resGameFilter}
-                      onChange={(e) => setResGameFilter(e.target.value)}
-                      className="px-3 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs"
-                    >
-                      <option value="Semua">Semua Game</option>
+                  <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/25 p-6 space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <h2 className="text-xl font-black text-white">Manajemen Seluruh Game ({games.length})</h2>
+                      <button
+                        onClick={() => {
+                          setCreatorSubView('list');
+                          setActivePage('creator');
+                        }}
+                        className="px-4 py-2.5 rounded-xl bg-cyan-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Wand2 className="w-4 h-4" /> Buka Game Creator Studio
+                      </button>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-4">
                       {games.map((g) => (
-                        <option key={g.id} value={g.title}>{g.title}</option>
-                      ))}
-                    </select>
-                    <input
-                      type="date"
-                      value={resDateFilter}
-                      onChange={(e) => setResDateFilter(e.target.value)}
-                      className="px-3 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs"
-                    />
-                  </div>
-
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead>
-                        <tr className="bg-[#070B19] border-b border-slate-800 text-slate-400 uppercase">
-                          <th className="py-3 px-3">Rank</th>
-                          <th className="py-3 px-3">Nama Siswa & Kelas</th>
-                          <th className="py-3 px-3">Game & Guru</th>
-                          <th className="py-3 px-3">Tanggal</th>
-                          <th className="py-3 px-3">Benar / Salah</th>
-                          <th className="py-3 px-3">Durasi</th>
-                          <th className="py-3 px-3">Skor</th>
-                          <th className="py-3 px-3">Rincian Jawaban</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800/60">
-                        {filteredResults.slice((resPage - 1) * 10, resPage * 10).map((r) => (
-                          <tr key={r.id} className="hover:bg-white/[0.02]">
-                            <td className="py-3 px-3 font-black text-amber-300">#{r.rank}</td>
-                            <td className="py-3 px-3">
-                              <div className="font-bold text-white">{r.studentName}</div>
-                              <div className="text-[11px] text-cyan-400">{r.className}</div>
-                            </td>
-                            <td className="py-3 px-3">
-                              <div className="font-semibold text-slate-200">{r.gameTitle}</div>
-                              <div className="text-[11px] text-slate-400">{r.teacherName}</div>
-                            </td>
-                            <td className="py-3 px-3 text-slate-300">{r.playedDate}</td>
-                            <td className="py-3 px-3">
-                              <span className="text-emerald-400 font-bold">{r.correctCount} Benar</span> /{' '}
-                              <span className="text-rose-400 font-bold">{r.wrongCount} Salah</span>
-                            </td>
-                            <td className="py-3 px-3 font-mono text-slate-300">{r.durationSec}d</td>
-                            <td className="py-3 px-3 font-mono font-black text-cyan-300">{r.score}</td>
-                            <td className="py-3 px-3 text-[11px] text-slate-400 max-w-xs">{r.answersDetail}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {adminMenuTab === 'import' && (
-                <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/25 p-6 space-y-6">
-                  <div>
-                    <h2 className="text-xl font-black text-white">
-                      Import Data Guru & Siswa (XLSX, CSV, DOCX)
-                    </h2>
-                    <p className="text-xs text-slate-400 mt-1">
-                      Akun diproses melalui Edge Function <code>admin-provision-users</code> menggunakan Supabase Admin API tanpa password umum.
-                    </p>
-                  </div>
-
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    <div className="p-4 rounded-2xl bg-[#070B19] border border-slate-800 space-y-3">
-                      <div className="text-xs font-black text-cyan-300 uppercase">1. Unduh Template Resmi</div>
-                      <div className="flex flex-wrap gap-2">
-                        {(['xlsx', 'csv', 'docx'] as const).map((fmt) => (
-                          <button
-                            key={fmt}
-                            onClick={() => downloadImportTemplate(importTargetRole, fmt)}
-                            className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-bold text-white uppercase cursor-pointer"
-                          >
-                            Template {importTargetRole === 'teacher' ? 'Guru' : 'Siswa'} (.{fmt})
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="p-4 rounded-2xl bg-[#070B19] border border-slate-800 space-y-3">
-                      <div className="text-xs font-black text-emerald-300 uppercase">2. Pilih Role & Unggah Berkas</div>
-                      <div className="flex gap-2">
-                        <select
-                          value={importTargetRole}
-                          onChange={(e) => setImportTargetRole(e.target.value as 'teacher' | 'student')}
-                          className="px-3 py-2 rounded-xl bg-[#0D132B] border border-slate-700 text-white text-xs font-bold"
+                        <div
+                          key={g.id}
+                          className="p-4 rounded-2xl bg-[#070B19] border border-slate-800 flex items-center justify-between gap-3"
                         >
-                          <option value="student">Target: Siswa</option>
-                          <option value="teacher">Target: Guru</option>
-                        </select>
-                        <label className="flex-1 px-4 py-2 rounded-xl bg-cyan-500/20 border border-cyan-400/40 text-cyan-200 text-xs font-bold text-center cursor-pointer">
-                          Pilih File (.xlsx, .csv, .docx)
-                          <input
-                            type="file"
-                            accept=".csv,.xlsx,.xls,.docx,.doc"
-                            className="hidden"
-                            onChange={(e) => {
-                              const f = e.target.files?.[0];
-                              if (f) handleParseImportFile(f);
-                            }}
-                          />
-                        </label>
-                      </div>
-                      {importFileName && (
-                        <div className="text-[11px] text-emerald-400 font-mono">Berkas terpilih: {importFileName}</div>
-                      )}
-                    </div>
-                  </div>
-
-                  {importRawRows.length > 0 && (
-                    <div className="space-y-4 p-5 rounded-2xl bg-[#070B19] border border-cyan-500/30">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <h3 className="text-sm font-black text-white">
-                          3. Pemetaan Kolom & Preview Validasi ({validatedImportRows.filter((r) => r.isValid).length} Valid / {validatedImportRows.length} Total)
-                        </h3>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => {
-                              setImportRawRows([]);
-                              setImportFileName('');
-                            }}
-                            className="px-3.5 py-2 rounded-xl bg-rose-500/15 text-rose-300 text-xs font-bold cursor-pointer"
-                          >
-                            Batalkan Import
-                          </button>
-                          <button
-                            disabled={isImportingServer}
-                            onClick={handleExecuteValidImport}
-                            className="px-4 py-2 rounded-xl bg-emerald-400 text-slate-950 font-black text-xs cursor-pointer"
-                          >
-                            {isImportingServer
-                              ? 'Memproses via Edge Function...'
-                              : `Lanjutkan Import Data Valid (${validatedImportRows.filter((r) => r.isValid).length})`}
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
-                        {(
-                          [
-                            { key: 'fullName', label: 'Kolom Nama' },
-                            { key: 'username', label: 'Kolom Username' },
-                            { key: 'email', label: 'Kolom Email' },
-                            { key: 'nipNis', label: importTargetRole === 'teacher' ? 'Kolom NIP' : 'Kolom NIS' },
-                            { key: 'className', label: 'Kolom Kelas' }
-                          ] as const
-                        ).map((m) => (
-                          <div key={m.key}>
-                            <label className="text-[10px] text-slate-400 block mb-1">{m.label}</label>
-                            <select
-                              value={colMap[m.key]}
-                              onChange={(e) => setColMap({ ...colMap, [m.key]: Number(e.target.value) })}
-                              className="w-full px-2.5 py-1.5 rounded-lg bg-[#0D132B] border border-slate-700 text-white"
-                            >
-                              {importRawHeaders.map((h, i) => (
-                                <option key={i} value={i}>
-                                  {h || `Kolom ${i + 1}`}
-                                </option>
-                              ))}
-                            </select>
+                          <div>
+                            <div className="font-bold text-white text-sm">{g.title}</div>
+                            <div className="text-[11px] text-slate-400">
+                              {g.creatorName} • {g.category} • {g.questions.length} Soal
+                            </div>
                           </div>
-                        ))}
-                      </div>
-
-                      <div className="overflow-x-auto max-h-72">
-                        <table className="w-full text-left text-xs">
-                          <thead>
-                            <tr className="border-b border-slate-800 text-slate-400">
-                              <th className="py-2 px-3">Baris</th>
-                              <th className="py-2 px-3">Nama</th>
-                              <th className="py-2 px-3">Username</th>
-                              <th className="py-2 px-3">Email</th>
-                              <th className="py-2 px-3">{importTargetRole === 'teacher' ? 'NIP' : 'NIS'}</th>
-                              <th className="py-2 px-3">Status Validasi</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-800/60">
-                            {validatedImportRows.map((row) => (
-                              <tr key={row.rowNum}>
-                                <td className="py-2 px-3 font-mono text-slate-400">#{row.rowNum}</td>
-                                <td className="py-2 px-3 text-white font-semibold">{row.fullName}</td>
-                                <td className="py-2 px-3 font-mono text-cyan-300">{row.username}</td>
-                                <td className="py-2 px-3 text-slate-300">{row.email}</td>
-                                <td className="py-2 px-3 font-mono text-slate-300">{row.nipNis}</td>
-                                <td className="py-2 px-3">
-                                  {row.isValid ? (
-                                    <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">
-                                      VALID ✓
-                                    </span>
-                                  ) : (
-                                    <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 font-bold">
-                                      {row.errors.join(', ')}
-                                    </span>
-                                  )}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {adminMenuTab === 'export' && (
-                <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/25 p-6 space-y-6">
-                  <div>
-                    <h2 className="text-xl font-black text-white">Pusat Export Laporan Resmi</h2>
-                    <p className="text-xs text-slate-400 mt-1">
-                      Unduh rekapitulasi data master Guru, Siswa, dan Hasil Kuis dalam berbagai format dokumen.
-                    </p>
-                  </div>
-
-                  <div className="grid md:grid-cols-3 gap-4">
-                    <div className="p-5 rounded-2xl bg-[#070B19] border border-slate-800 space-y-3">
-                      <div className="font-black text-white text-sm">Export Data Guru</div>
-                      <p className="text-xs text-slate-400">Mencakup NIP, username, email, wali kelas, dan status aktif.</p>
-                      <div className="flex flex-wrap gap-2">
-                        {(['xlsx', 'csv', 'docx'] as const).map((fmt) => (
-                          <button
-                            key={fmt}
-                            onClick={() => exportAccountsReport('teacher', fmt)}
-                            className="px-3 py-2 rounded-xl bg-cyan-500/15 text-cyan-300 font-bold text-xs uppercase cursor-pointer"
-                          >
-                            {fmt}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="p-5 rounded-2xl bg-[#070B19] border border-slate-800 space-y-3">
-                      <div className="font-black text-white text-sm">Export Data Siswa</div>
-                      <p className="text-xs text-slate-400">Mencakup NIS, username, email sekolah, kelas, dan status aktif.</p>
-                      <div className="flex flex-wrap gap-2">
-                        {(['xlsx', 'csv', 'docx'] as const).map((fmt) => (
-                          <button
-                            key={fmt}
-                            onClick={() => exportAccountsReport('student', fmt)}
-                            className="px-3 py-2 rounded-xl bg-emerald-500/15 text-emerald-300 font-bold text-xs uppercase cursor-pointer"
-                          >
-                            {fmt}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="p-5 rounded-2xl bg-[#070B19] border border-slate-800 space-y-3">
-                      <div className="font-black text-white text-sm">Export Hasil Kuis</div>
-                      <p className="text-xs text-slate-400">Identitas peserta, kelas, game, nilai, jawaban, dan peringkat.</p>
-                      <div className="flex flex-wrap gap-2">
-                        {(['xlsx', 'csv', 'docx', 'pdf'] as const).map((fmt) => (
-                          <button
-                            key={fmt}
-                            onClick={() => exportQuizResults(fmt)}
-                            className="px-3 py-2 rounded-xl bg-purple-500/15 text-purple-300 font-bold text-xs uppercase cursor-pointer"
-                          >
-                            {fmt}
-                          </button>
-                        ))}
-                      </div>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={async () => {
+                                const nextStatus = g.status === 'published' ? 'disabled' : 'published';
+                                await persistGameToDatabase({ ...g, status: nextStatus });
+                                await recordAuditLog('TOGGLE_GAME_STATUS', 'games', { title: g.title, status: nextStatus });
+                                showToast(`Status game "${g.title}" diubah menjadi ${nextStatus}.`, 'info');
+                              }}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer ${
+                                g.status === 'published'
+                                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                  : 'bg-slate-800 text-slate-400'
+                              }`}
+                            >
+                              {g.status === 'published' ? 'Aktif' : 'Nonaktif'}
+                            </button>
+                            <button
+                              onClick={async () => {
+                                await deleteGameFromDatabase(g.id);
+                                await recordAuditLog('DELETE_GAME', 'games', { title: g.title });
+                                showToast(`Game "${g.title}" dihapus.`, 'info');
+                              }}
+                              className="p-2 rounded-xl bg-rose-500/15 text-rose-300 cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -6801,7 +6572,7 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                 className="px-3 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs"
               >
                 <option value="Semua">Semua Kategori</option>
-                {LESSON_CATEGORIES.map((c) => (
+                {lessonCategories.map((c) => (
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>
