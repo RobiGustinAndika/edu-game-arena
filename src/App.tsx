@@ -4518,7 +4518,10 @@ export default function App() {
       };
 
       const downloadImportTemplate = (roleType: 'teacher' | 'student', format: 'xlsx' | 'csv' | 'docx') => {
-        const headers = ['Nama', 'User_name', 'NIP', 'Email', 'Password'];
+        const headers =
+          roleType === 'teacher'
+            ? ['Nama', 'User_name', 'NIP', 'Email', 'Password']
+            : ['Nama', 'User_name', 'Kelas', 'Email', 'Password'];
 
         if (format === 'csv') {
           const csv = `${headers.join(',')}\n`;
@@ -4587,7 +4590,11 @@ ${emptyTrs}
 
         const nonEmptyDataRows = parsedRows.slice(1).filter((r) => r.some((cell) => cell && cell.trim().length > 0));
         if (parsedRows.length === 0 || nonEmptyDataRows.length === 0) {
-          showToast('File template masih kosong. Isi minimal 1 baris data (Nama, User_name, NIP, Email, Password) lalu unggah kembali.', 'error');
+          const expectedCols =
+            importTargetRole === 'teacher'
+              ? 'Nama, User_name, NIP, Email, Password'
+              : 'Nama, User_name, Kelas, Email, Password';
+          showToast(`File template masih kosong. Isi minimal 1 baris data (${expectedCols}) lalu unggah kembali.`, 'error');
           return;
         }
         setImportRawHeaders(parsedRows[0]);
@@ -4595,33 +4602,34 @@ ${emptyTrs}
         setColMap({ fullName: 0, username: 1, nipNis: 2, email: 3, password: 4 });
       };
 
-      // Validasi baris import format 5 kolom: NAMA, USERNAME, NIP, EMAIL, PASSWORD
+      // Validasi baris import: Guru (Nama, User_name, NIP, Email, Password) & Siswa (Nama, User_name, Kelas, Email, Password)
       const validatedImportRows = importRawRows.map((row, idx) => {
         const fullName = (row[colMap.fullName] || '').trim();
         const username = (row[colMap.username] || '').trim().toLowerCase();
-        const nipNis = (row[colMap.nipNis] || '').trim();
+        const thirdColVal = (row[colMap.nipNis] || '').trim();
         const email = (row[colMap.email] || '').trim().toLowerCase();
         const password = (row[colMap.password] || '').trim();
 
         const errors: string[] = [];
-        if (!fullName || fullName.length < 2) errors.push('NAMA wajib diisi');
-        if (!username || !/^[a-z0-9_]{3,30}$/.test(username)) errors.push('USERNAME tidak valid');
-        if (!nipNis) errors.push('NIP/NIS kosong');
-        if (!email || !email.includes('@')) errors.push('EMAIL tidak valid');
-        if (!password || password.length < 6) errors.push('PASSWORD min. 6 karakter');
+        if (!fullName || fullName.length < 2) errors.push('Nama wajib diisi');
+        if (!username || !/^[a-z0-9_]{3,30}$/.test(username)) errors.push('User_name tidak valid');
+        if (!thirdColVal) errors.push(importTargetRole === 'teacher' ? 'NIP kosong' : 'Kelas kosong');
+        if (!email || !email.includes('@')) errors.push('Email tidak valid');
+        if (!password || password.length < 6) errors.push('Password min. 6 karakter');
 
         const dupEmail = managedAccounts.some((a) => a.email.toLowerCase() === email);
         const dupUser = managedAccounts.some((a) => a.username.toLowerCase() === username);
-        const dupNip = managedAccounts.some((a) => a.nipNis === nipNis);
-        if (dupEmail) errors.push('Duplikat EMAIL');
-        if (dupUser) errors.push('Duplikat USERNAME');
-        if (dupNip) errors.push('Duplikat NIP/NIS');
+        const dupNip =
+          importTargetRole === 'teacher' && managedAccounts.some((a) => a.nipNis === thirdColVal);
+        if (dupEmail) errors.push('Duplikat Email');
+        if (dupUser) errors.push('Duplikat User_name');
+        if (dupNip) errors.push('Duplikat NIP');
 
         return {
           rowNum: idx + 2,
           fullName,
           username,
-          nipNis,
+          thirdColVal,
           email,
           password,
           isValid: errors.length === 0,
@@ -4640,10 +4648,14 @@ ${emptyTrs}
           if (sbClient) {
             await sbClient.functions.invoke('admin-provision-users', {
               body: {
-                users: validItems.map((v) => ({
+                users: validItems.map((v, i) => ({
                   full_name: v.fullName,
                   username: v.username,
-                  nip_nis: v.nipNis,
+                  nip_nis:
+                    importTargetRole === 'teacher'
+                      ? v.thirdColVal
+                      : `SISWA-${Date.now().toString().slice(-5)}${i + 1}`,
+                  class_name: importTargetRole === 'student' ? v.thirdColVal : null,
                   email: v.email,
                   password: v.password,
                   role: importTargetRole
@@ -4657,9 +4669,12 @@ ${emptyTrs}
             username: v.username,
             fullName: v.fullName,
             email: v.email,
-            nipNis: v.nipNis,
+            nipNis:
+              importTargetRole === 'teacher'
+                ? v.thirdColVal
+                : `SISWA-${Date.now().toString().slice(-5)}${i + 1}`,
             role: importTargetRole,
-            className: importTargetRole === 'student' ? 'Semua Kelas' : '',
+            className: importTargetRole === 'student' ? v.thirdColVal : '',
             isActive: true,
             createdAt: new Date().toISOString().slice(0, 10)
           }));
@@ -5150,7 +5165,11 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                       </h2>
                       <p className="text-xs text-slate-400 mt-1">
                         Format wajib 5 kolom (1 kolom per masukan):{' '}
-                        <code className="text-cyan-300 font-bold">Nama | User_name | NIP | Email | Password</code>
+                        <code className="text-cyan-300 font-bold">
+                          {importTargetRole === 'teacher'
+                            ? 'Nama | User_name | NIP | Email | Password'
+                            : 'Nama | User_name | Kelas | Email | Password'}
+                        </code>
                       </p>
                     </div>
                     <div className="flex gap-2">
@@ -5221,11 +5240,14 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
                           {[
-                            { key: 'fullName', label: 'Kolom NAMA' },
-                            { key: 'username', label: 'Kolom USERNAME' },
-                            { key: 'nipNis', label: 'Kolom NIP / NIS' },
-                            { key: 'email', label: 'Kolom EMAIL' },
-                            { key: 'password', label: 'Kolom PASSWORD' }
+                            { key: 'fullName', label: 'Kolom Nama' },
+                            { key: 'username', label: 'Kolom User_name' },
+                            {
+                              key: 'nipNis',
+                              label: importTargetRole === 'teacher' ? 'Kolom NIP' : 'Kolom Kelas'
+                            },
+                            { key: 'email', label: 'Kolom Email' },
+                            { key: 'password', label: 'Kolom Password' }
                           ].map((m) => (
                             <div key={m.key}>
                               <label className="text-[10px] text-slate-400 block mb-1">{m.label}</label>
@@ -5252,11 +5274,13 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                           <thead>
                             <tr className="bg-[#070B19] border-b border-slate-800 text-slate-400 uppercase">
                               <th className="py-2.5 px-3">Baris</th>
-                              <th className="py-2.5 px-3">NAMA</th>
-                              <th className="py-2.5 px-3">USERNAME</th>
-                              <th className="py-2.5 px-3">NIP / NIS</th>
-                              <th className="py-2.5 px-3">EMAIL</th>
-                              <th className="py-2.5 px-3">PASSWORD</th>
+                              <th className="py-2.5 px-3">Nama</th>
+                              <th className="py-2.5 px-3">User_name</th>
+                              <th className="py-2.5 px-3">
+                                {importTargetRole === 'teacher' ? 'NIP' : 'Kelas'}
+                              </th>
+                              <th className="py-2.5 px-3">Email</th>
+                              <th className="py-2.5 px-3">Password</th>
                               <th className="py-2.5 px-3">Validasi</th>
                             </tr>
                           </thead>
@@ -5266,7 +5290,7 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                                 <td className="py-2.5 px-3 font-mono text-slate-400">#{r.rowNum}</td>
                                 <td className="py-2.5 px-3 font-bold text-white">{r.fullName || '-'}</td>
                                 <td className="py-2.5 px-3 font-mono text-cyan-300">{r.username || '-'}</td>
-                                <td className="py-2.5 px-3 font-mono text-slate-300">{r.nipNis || '-'}</td>
+                                <td className="py-2.5 px-3 font-mono text-slate-300">{r.thirdColVal || '-'}</td>
                                 <td className="py-2.5 px-3 text-slate-300">{r.email || '-'}</td>
                                 <td className="py-2.5 px-3 font-mono text-slate-400">
                                   {r.password ? '•'.repeat(Math.min(10, r.password.length)) : '-'}
