@@ -6730,7 +6730,7 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
 
   return (
     <div className="min-h-screen bg-[#070B19] text-slate-100 font-sans selection:bg-emerald-400 selection:text-slate-950">
-      <Navbar />
+      {Navbar()}
 
       {toast && (
         <div className="fixed bottom-5 right-5 z-50 max-w-sm animate-bounce">
@@ -6750,8 +6750,8 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
       )}
 
       <main>
-        {activePage === 'landing' && <LandingPage />}
-        {activePage === 'creator' && <GameCreatorStudioPage />}
+        {activePage === 'landing' && LandingPage()}
+        {activePage === 'creator' && GameCreatorStudioPage()}
 
         {activePage === 'catalog' && (
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-6">
@@ -6836,7 +6836,7 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
           </div>
         )}
 
-        {activePage === 'leaderboard' && <LeaderboardPage />}
+        {activePage === 'leaderboard' && LeaderboardPage()}
 
         {activePage === 'about' && (
           <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12">
@@ -6869,15 +6869,15 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
           </div>
         )}
 
-        {activePage === 'login' && <LoginAndJoinPage />}
-        {activePage === 'dashboard' && <RoleDashboard />}
-        {activePage === 'lobby' && <MultiplayerLobby />}
+        {activePage === 'login' && LoginAndJoinPage()}
+        {activePage === 'dashboard' && RoleDashboard()}
+        {activePage === 'lobby' && MultiplayerLobby()}
         {activePage === 'game' && <LiveGameArena />}
-        {activePage === 'results' && <GameResultsPage />}
-        {activePage === 'supabase-guide' && <SupabaseGuidePage />}
+        {activePage === 'results' && GameResultsPage()}
+        {activePage === 'supabase-guide' && SupabaseGuidePage()}
       </main>
 
-      <CreateRoomModal />
+      {CreateRoomModal()}
 
       {/* Modal Bootstrap Super Admin (admin_darulfikri) via Server-Side Edge Function */}
       {showBootstrapModal && (
