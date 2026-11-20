@@ -3877,6 +3877,7 @@ export default function App() {
                 </label>
                 <input
                   type="text"
+                  required
                   placeholder="Contoh: Raka Pratama (XI RPL 1)"
                   value={studentNameInput}
                   onChange={(e) => setStudentNameInput(e.target.value)}
@@ -3886,14 +3887,14 @@ export default function App() {
 
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-                  Nama Kelompok / Tim (Jika Mode Kelompok)
+                  Nama Kelompok / Tim (Opsional)
                 </label>
                 <input
                   type="text"
-                  placeholder="Contoh: Tim Cyber"
+                  placeholder="Contoh: Tim Cyber Garuda"
                   value={studentTeamInput}
                   onChange={(e) => setStudentTeamInput(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs"
+                  className="w-full px-4 py-2.5 rounded-xl bg-[#070B19] border border-slate-700 text-white text-sm focus:outline-none focus:border-cyan-400"
                 />
               </div>
 
@@ -3901,15 +3902,15 @@ export default function App() {
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
                   Pilih Avatar Pemain
                 </label>
-                <div className="flex flex-wrap gap-2">
+                <div className="grid grid-cols-8 gap-2">
                   {avatars.map((av) => (
                     <button
                       type="button"
                       key={av}
                       onClick={() => setStudentAvatarInput(av)}
-                      className={`w-11 h-11 rounded-xl text-xl flex items-center justify-center border transition-all cursor-pointer ${
+                      className={`h-10 rounded-xl text-lg flex items-center justify-center border transition-all cursor-pointer ${
                         studentAvatarInput === av
-                          ? 'bg-cyan-500/20 border-cyan-400 scale-110'
+                          ? 'bg-cyan-500/20 border-cyan-400 scale-105'
                           : 'bg-[#070B19] border-slate-800 hover:border-slate-600'
                       }`}
                     >
@@ -3928,17 +3929,21 @@ export default function App() {
             </form>
           ) : (
             <form onSubmit={handleStaffLogin} className="space-y-4">
-              {!isSupabaseConnected && (
+              {loginTab === 'super_admin' && (
                 <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200 space-y-2">
-                  <p>
-                    <strong>Backend Supabase Belum Terhubung:</strong> Autentikasi staf membutuhkan koneksi Supabase aktif (tidak menggunakan akun palsu di browser).
+                  <div className="font-bold flex items-center gap-1.5">
+                    <Crown className="w-4 h-4 text-amber-400" />
+                    Akses Super Admin (admin_darulfikri)
+                  </div>
+                  <p className="text-[11px] text-amber-100/80">
+                    Jika baru pertama kali menyiapkan database Supabase, jalankan proses bootstrap server-side terlebih dahulu.
                   </p>
                   <button
                     type="button"
-                    onClick={() => setActivePage('supabase-guide')}
+                    onClick={() => setShowBootstrapModal(true)}
                     className="px-3 py-1.5 rounded-lg bg-amber-400 text-slate-950 font-black text-[11px] cursor-pointer"
                   >
-                    Konfigurasi URL & Anon Key Supabase →
+                    Bootstrap Super Admin (admin_darulfikri)
                   </button>
                 </div>
               )}
@@ -3953,13 +3958,14 @@ export default function App() {
                   placeholder={
                     loginTab === 'super_admin'
                       ? 'admin_darulfikri atau admin@darulfikri.sch.id'
-                      : 'budi_santoso atau guru@darulfikri.sch.id'
+                      : 'username atau email@darulfikri.sch.id'
                   }
                   value={staffIdentifierInput}
                   onChange={(e) => setStaffIdentifierInput(e.target.value)}
                   className="w-full px-4 py-3 rounded-xl bg-[#070B19] border border-slate-700 text-white text-sm focus:outline-none focus:border-cyan-400"
                 />
               </div>
+
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-300">
@@ -3976,7 +3982,8 @@ export default function App() {
                 <input
                   type="password"
                   required
-                  placeholder="Minimal 6 karakter"
+                  minLength={6}
+                  placeholder="Minimal 6 karakter..."
                   value={staffPasswordInput}
                   onChange={(e) => setStaffPasswordInput(e.target.value)}
                   className="w-full px-4 py-3 rounded-xl bg-[#070B19] border border-slate-700 text-white text-sm focus:outline-none focus:border-cyan-400"
@@ -3985,23 +3992,10 @@ export default function App() {
 
               <button
                 type="submit"
-                className="w-full py-3.5 rounded-xl font-black text-sm text-slate-950 bg-gradient-to-r from-emerald-400 via-cyan-400 to-blue-500 hover:brightness-110 shadow-lg transition-all cursor-pointer"
+                className="w-full py-3.5 rounded-xl font-black text-sm text-white bg-gradient-to-r from-purple-600 to-cyan-500 hover:brightness-110 shadow-lg transition-all cursor-pointer"
               >
-                MASUK DASHBOARD {loginTab.replace('_', ' ').toUpperCase()}
+                MASUK SEBAGAI {loginTab.replace('_', ' ').toUpperCase()}
               </button>
-
-              {loginTab === 'super_admin' && (
-                <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs">
-                  <span className="text-slate-400">Instalasi baru?</span>
-                  <button
-                    type="button"
-                    onClick={() => setShowBootstrapModal(true)}
-                    className="text-amber-300 font-bold hover:underline cursor-pointer"
-                  >
-                    Bootstrap Super Admin (admin_darulfikri)
-                  </button>
-                </div>
-              )}
             </form>
           )}
         </div>
@@ -4010,34 +4004,48 @@ export default function App() {
   };
 
   // ==========================================================================
-  // 13. DASHBOARD ROLE (TEACHER, ADMIN, SUPER_ADMIN, STUDENT)
+  // 13. DASHBOARD BERBASIS ROLE (TEACHER, ADMIN / SUPER_ADMIN, STUDENT)
   // ==========================================================================
   const RoleDashboard = () => {
-    if (!currentUser) return null;
+    if (!currentUser) {
+      return (
+        <div className="max-w-xl mx-auto px-4 py-16 text-center space-y-4">
+          <Lock className="w-12 h-12 text-amber-400 mx-auto" />
+          <h2 className="text-2xl font-black text-white">Silakan Login Terlebih Dahulu</h2>
+          <button
+            onClick={() => setActivePage('login')}
+            className="px-6 py-3 rounded-xl bg-cyan-400 text-slate-950 font-black text-sm cursor-pointer"
+          >
+            Ke Halaman Login
+          </button>
+        </div>
+      );
+    }
 
+    // DASHBOARD GURU / TEACHER
     if (currentUser.role === 'teacher') {
       const myRooms = allRooms.filter((r) => r.hostUid === currentUser.uid);
       const myGames = games.filter((g) => g.ownerId === currentUser.uid);
-      const totalStudentsPlayed = myRooms.reduce(
+      const totalStudentsJoined = myRooms.reduce(
         (acc, r) => acc + Object.keys(r.players || {}).length,
         0
       );
 
       return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-3xl bg-gradient-to-r from-[#0F1736] to-[#1A1446] border border-indigo-500/30">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-3xl bg-gradient-to-r from-[#0F1736] to-[#1D154A] border border-indigo-500/30">
             <div>
-              <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
-                Dashboard Guru / Host (@{currentUser.username})
+              <span className="px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-300 text-xs font-bold">
+                DASHBOARD GURU / HOST • SUPABASE
               </span>
-              <h1 className="text-2xl sm:text-3xl font-black text-white mt-1">
-                Halo, {currentUser.name}
+              <h1 className="text-2xl sm:text-3xl font-black text-white mt-2">
+                Selamat Datang, {currentUser.name}
               </h1>
               <p className="text-xs sm:text-sm text-slate-300 mt-1">
-                Rancang game edukasi Anda sendiri atau buka room multiplayer untuk kelas.
+                Rancang game di Creator Studio atau buka room multiplayer untuk memulai sesi belajar interaktif.
               </p>
             </div>
-            <div className="flex flex-wrap gap-2.5">
+            <div className="flex flex-wrap gap-2.5 self-start">
               <button
                 onClick={() => {
                   setCreatorSubView('list');
@@ -4050,7 +4058,7 @@ export default function App() {
               </button>
               <button
                 onClick={() => setShowCreateRoomModal(true)}
-                className="px-6 py-3.5 rounded-2xl font-black text-sm text-slate-950 bg-gradient-to-r from-emerald-400 to-cyan-500 hover:brightness-110 shadow-lg shadow-cyan-500/25 flex items-center gap-2 cursor-pointer"
+                className="px-6 py-3.5 rounded-2xl font-black text-sm text-slate-950 bg-gradient-to-r from-emerald-400 to-cyan-500 hover:brightness-110 shadow-lg flex items-center gap-2 cursor-pointer"
               >
                 <Plus className="w-5 h-5" />
                 Buat Room Multiplayer
@@ -4061,79 +4069,85 @@ export default function App() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
               { label: 'Game Buatan Saya', val: myGames.length, icon: Wand2, color: 'text-purple-400' },
-              { label: 'Room Dibuat', val: myRooms.length, icon: Gamepad2, color: 'text-cyan-400' },
-              { label: 'Total Siswa Bermain', val: totalStudentsPlayed, icon: Users, color: 'text-blue-400' },
-              { label: 'Katalog Tersedia', val: games.filter((g) => g.status === 'published').length, icon: LayoutGrid, color: 'text-emerald-400' }
-            ].map((st, idx) => {
-              const IconComp = st.icon;
+              { label: 'Total Room Dibuat', val: myRooms.length, icon: LayoutGrid, color: 'text-cyan-400' },
+              { label: 'Siswa Bergabung', val: totalStudentsJoined, icon: Users, color: 'text-emerald-400' },
+              {
+                label: 'Katalog Tersedia',
+                val: games.filter((g) => g.status === 'published').length,
+                icon: Gamepad2,
+                color: 'text-amber-400'
+              }
+            ].map((stat, i) => {
+              const IconC = stat.icon;
               return (
-                <div key={idx} className="p-5 rounded-2xl bg-[#0D132B] border border-indigo-500/20">
-                  <IconComp className={`w-6 h-6 ${st.color} mb-2`} />
-                  <div className="text-2xl font-black text-white">{st.val}</div>
-                  <div className="text-xs text-slate-400 font-medium">{st.label}</div>
+                <div key={i} className="p-5 rounded-2xl bg-[#0D132B] border border-indigo-500/20">
+                  <IconC className={`w-6 h-6 ${stat.color} mb-2`} />
+                  <div className="text-2xl font-black text-white">{stat.val}</div>
+                  <div className="text-xs text-slate-400 font-semibold">{stat.label}</div>
                 </div>
               );
             })}
           </div>
 
           <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/25 p-6 space-y-4">
-            <h2 className="text-lg font-black text-white flex items-center gap-2">
-              <Clock className="w-5 h-5 text-cyan-400" />
-              Daftar Room & Riwayat Permainan
-            </h2>
+            <h2 className="text-lg font-black text-white">Riwayat & Room Aktif Anda</h2>
             {myRooms.length === 0 ? (
-              <div className="text-center py-10 text-slate-400 text-sm border border-dashed border-slate-700 rounded-2xl">
-                Belum ada room yang dibuat. Klik tombol <strong>"Buat Room Multiplayer"</strong> untuk memulai!
+              <div className="text-center py-10 border border-dashed border-slate-700 rounded-2xl space-y-3">
+                <p className="text-sm text-slate-400">Anda belum membuat room multiplayer.</p>
+                <button
+                  onClick={() => setShowCreateRoomModal(true)}
+                  className="px-4 py-2 rounded-xl bg-cyan-500/20 text-cyan-300 text-xs font-bold border border-cyan-500/40"
+                >
+                  + Buat Room Sekarang
+                </button>
               </div>
             ) : (
               <div className="grid md:grid-cols-2 gap-4">
                 {myRooms.map((room) => (
                   <div
                     key={room.id}
-                    className="p-5 rounded-2xl bg-[#070B19] border border-indigo-500/30 flex flex-col justify-between gap-4"
+                    className="p-5 rounded-2xl bg-[#070B19] border border-indigo-500/25 flex items-center justify-between gap-4"
                   >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <span className="font-mono text-lg font-black text-cyan-300 bg-cyan-500/15 px-3 py-1 rounded-lg border border-cyan-400/30">
-                          {room.code}
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-black text-lg text-cyan-400">{room.code}</span>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                            room.status === 'waiting'
+                              ? 'bg-amber-500/20 text-amber-300'
+                              : room.status === 'playing'
+                              ? 'bg-emerald-500/20 text-emerald-300'
+                              : 'bg-slate-700 text-slate-300'
+                          }`}
+                        >
+                          {room.status}
                         </span>
-                        <h3 className="font-bold text-white mt-2">{room.gameTitle}</h3>
-                        <p className="text-xs text-slate-400">
-                          Pemain: {Object.keys(room.players || {}).length}/{room.maxPlayers} • Durasi: {room.durationPerQuestion}s
-                        </p>
                       </div>
-                      <span
-                        className={`px-2.5 py-1 rounded-full text-[11px] font-bold uppercase ${
-                          room.status === 'waiting'
-                            ? 'bg-amber-500/20 text-amber-300'
-                            : room.status === 'playing'
-                            ? 'bg-emerald-500/20 text-emerald-300'
-                            : 'bg-slate-700 text-slate-300'
-                        }`}
-                      >
-                        {room.status}
-                      </span>
+                      <div className="text-sm font-bold text-white mt-1">{room.gameTitle}</div>
+                      <div className="text-xs text-slate-400 mt-0.5">
+                        {Object.keys(room.players || {}).length} / {room.maxPlayers} Pemain • {room.difficulty}
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      {room.status !== 'closed' && (
-                        <button
-                          onClick={() => {
-                            setActiveRoom(room);
-                            setActivePage(room.status === 'playing' ? 'game' : 'lobby');
-                          }}
-                          className="flex-1 py-2.5 rounded-xl bg-cyan-500 text-slate-950 font-extrabold text-xs cursor-pointer"
-                        >
-                          Buka Room
-                        </button>
-                      )}
-                      {room.status !== 'closed' && (
-                        <button
-                          onClick={() => handleCloseRoom(room)}
-                          className="px-3.5 py-2.5 rounded-xl bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 text-xs font-bold cursor-pointer"
-                        >
-                          Tutup
-                        </button>
+                    <div className="flex flex-col gap-2">
+                      {room.status !== 'closed' && room.status !== 'finished' && (
+                        <>
+                          <button
+                            onClick={() => {
+                              setActiveRoom(room);
+                              setActivePage(room.status === 'playing' ? 'game' : 'lobby');
+                            }}
+                            className="px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 text-xs font-bold hover:bg-cyan-500/30"
+                          >
+                            Masuk Room
+                          </button>
+                          <button
+                            onClick={() => handleCloseRoom(room)}
+                            className="px-3 py-1.5 rounded-lg bg-rose-500/15 text-rose-300 text-xs font-bold hover:bg-rose-500/25"
+                          >
+                            Tutup Room
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -4145,91 +4159,439 @@ export default function App() {
       );
     }
 
-    // ========================================================================
-    // PANEL ADMINISTRATOR & SUPER ADMIN LENGKAP (SIDEBAR + CRUD + IMPORT/EXPORT)
-    // ========================================================================
+    // DASHBOARD ADMIN & SUPER ADMIN
     if (currentUser.role === 'admin' || currentUser.role === 'super_admin') {
       const teachersList = managedAccounts.filter((a) => a.role === 'teacher');
       const studentsList = managedAccounts.filter((a) => a.role === 'student');
       const activeRoomsCount = allRooms.filter((r) => r.status === 'waiting' || r.status === 'playing').length;
       const avgScore =
         quizResults.length > 0
-          ? Math.round(quizResults.reduce((acc, r) => acc + r.score, 0) / quizResults.length)
+          ? Math.round(quizResults.reduce((sum, r) => sum + r.score, 0) / quizResults.length)
           : 0;
 
-      // Helper Unduh File (CSV, XLSX-compatible XML/CSV, DOCX-compatible HTML/Word, PDF Print Window)
-      const triggerDownloadBlob = (content: string, filename: string, mimeType: string) => {
+      const triggerDownloadBlob = (content: BlobPart, fileName: string, mimeType: string) => {
         const blob = new Blob([content], { type: mimeType });
         const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
         URL.revokeObjectURL(url);
       };
 
+      const escapeXmlCell = (val: string) =>
+        String(val ?? '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&apos;');
+
+      const colIndexToLetters = (idx: number): string => {
+        let n = idx + 1;
+        let letters = '';
+        while (n > 0) {
+          const rem = (n - 1) % 26;
+          letters = String.fromCharCode(65 + rem) + letters;
+          n = Math.floor((n - 1) / 26);
+        }
+        return letters;
+      };
+
+      // Generator File .XLSX Biner Asli (ZIP + Office Open XML SpreadsheetML + Styles) sesuai format tabel gambar_3.png
+      const buildRealXlsxUint8Array = (
+        sheetName: string,
+        rowsData: string[][],
+        options?: { styledTemplate?: boolean; blankRowsCount?: number }
+      ): Uint8Array => {
+        const encoder = new TextEncoder();
+        const crcTable = new Uint32Array(256);
+        for (let i = 0; i < 256; i++) {
+          let c = i;
+          for (let k = 0; k < 8; k++) {
+            c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+          }
+          crcTable[i] = c;
+        }
+        const computeCrc32 = (bytes: Uint8Array) => {
+          let crc = 0xffffffff;
+          for (let i = 0; i < bytes.length; i++) {
+            crc = (crc >>> 8) ^ crcTable[(crc ^ bytes[i]) & 0xff];
+          }
+          return (crc ^ 0xffffffff) >>> 0;
+        };
+
+        const styled = Boolean(options?.styledTemplate);
+        const totalBlankRows = options?.blankRowsCount ?? 0;
+        const colCount = rowsData[0]?.length || 5;
+
+        const dataRowsXml = rowsData
+          .map((row, rIdx) => {
+            const styleAttr = styled ? (rIdx === 0 ? ' s="1"' : ' s="2"') : '';
+            const cellsXml = row
+              .map((cellVal, cIdx) => {
+                const ref = `${colIndexToLetters(cIdx)}${rIdx + 1}`;
+                return `<c r="${ref}"${styleAttr} t="inlineStr"><is><t>${escapeXmlCell(cellVal)}</t></is></c>`;
+              })
+              .join('');
+            return `<row r="${rIdx + 1}"${rIdx === 0 && styled ? ' ht="22" customHeight="1"' : ''}>${cellsXml}</row>`;
+          })
+          .join('');
+
+        let extraBlankXml = '';
+        if (styled && totalBlankRows > 0) {
+          const startRow = rowsData.length + 1;
+          const blankRowsArr: string[] = [];
+          for (let b = 0; b < totalBlankRows; b++) {
+            const rNum = startRow + b;
+            let cells = '';
+            for (let cIdx = 0; cIdx < colCount; cIdx++) {
+              const ref = `${colIndexToLetters(cIdx)}${rNum}`;
+              cells += `<c r="${ref}" s="2"/>`;
+            }
+            blankRowsArr.push(`<row r="${rNum}" ht="19" customHeight="1">${cells}</row>`);
+          }
+          extraBlankXml = blankRowsArr.join('');
+        }
+
+        const colsXml = styled
+          ? `<cols><col min="1" max="1" width="24" customWidth="1"/><col min="2" max="2" width="18" customWidth="1"/><col min="3" max="3" width="22" customWidth="1"/><col min="4" max="4" width="28" customWidth="1"/><col min="5" max="5" width="18" customWidth="1"/></cols>`
+          : '';
+
+        const stylesXml =
+          `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+          `<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">` +
+          `<fonts count="2">` +
+          `<font><sz val="11"/><name val="Calibri"/></font>` +
+          `<font><b/><sz val="11"/><color rgb="FF000000"/><name val="Calibri"/></font>` +
+          `</fonts>` +
+          `<fills count="3">` +
+          `<fill><patternFill patternType="none"/></fill>` +
+          `<fill><patternFill patternType="gray125"/></fill>` +
+          `<fill><patternFill patternType="solid"><fgColor rgb="FF00B0F0"/><bgColor indexed="64"/></patternFill></fill>` +
+          `</fills>` +
+          `<borders count="2">` +
+          `<border><left/><right/><top/><bottom/><diagonal/></border>` +
+          `<border>` +
+          `<left style="thin"><color rgb="FF000000"/></left>` +
+          `<right style="thin"><color rgb="FF000000"/></right>` +
+          `<top style="thin"><color rgb="FF000000"/></top>` +
+          `<bottom style="thin"><color rgb="FF000000"/></bottom>` +
+          `<diagonal/>` +
+          `</border>` +
+          `</borders>` +
+          `<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>` +
+          `<cellXfs count="3">` +
+          `<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>` +
+          `<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>` +
+          `<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>` +
+          `</cellXfs>` +
+          `</styleSheet>`;
+
+        const safeSheetName = escapeXmlCell(sheetName.slice(0, 30) || 'Sheet1');
+        const files: { name: string; content: Uint8Array }[] = [
+          {
+            name: '[Content_Types].xml',
+            content: encoder.encode(
+              `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+                `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">` +
+                `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>` +
+                `<Default Extension="xml" ContentType="application/xml"/>` +
+                `<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>` +
+                `<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>` +
+                `<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>` +
+                `</Types>`
+            )
+          },
+          {
+            name: '_rels/.rels',
+            content: encoder.encode(
+              `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+                `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
+                `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>` +
+                `</Relationships>`
+            )
+          },
+          {
+            name: 'xl/workbook.xml',
+            content: encoder.encode(
+              `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+                `<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">` +
+                `<sheets><sheet name="${safeSheetName}" sheetId="1" r:id="rId1"/></sheets>` +
+                `</workbook>`
+            )
+          },
+          {
+            name: 'xl/_rels/workbook.xml.rels',
+            content: encoder.encode(
+              `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+                `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
+                `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>` +
+                `<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>` +
+                `</Relationships>`
+            )
+          },
+          {
+            name: 'xl/styles.xml',
+            content: encoder.encode(stylesXml)
+          },
+          {
+            name: 'xl/worksheets/sheet1.xml',
+            content: encoder.encode(
+              `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+                `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">` +
+                `${colsXml}` +
+                `<sheetData>${dataRowsXml}${extraBlankXml}</sheetData>` +
+                `</worksheet>`
+            )
+          }
+        ];
+
+        const localChunks: Uint8Array[] = [];
+        const centralChunks: Uint8Array[] = [];
+        let offset = 0;
+
+        for (const f of files) {
+          const nameBytes = encoder.encode(f.name);
+          const dataBytes = f.content;
+          const crc = computeCrc32(dataBytes);
+
+          const lfh = new Uint8Array(30 + nameBytes.length);
+          const lView = new DataView(lfh.buffer);
+          lView.setUint32(0, 0x04034b50, true);
+          lView.setUint16(4, 20, true);
+          lView.setUint16(6, 0, true);
+          lView.setUint16(8, 0, true); // STORE (no compression)
+          lView.setUint16(10, 0, true);
+          lView.setUint16(12, 0, true);
+          lView.setUint32(14, crc, true);
+          lView.setUint32(18, dataBytes.length, true);
+          lView.setUint32(22, dataBytes.length, true);
+          lView.setUint16(26, nameBytes.length, true);
+          lView.setUint16(28, 0, true);
+          lfh.set(nameBytes, 30);
+
+          localChunks.push(lfh, dataBytes);
+
+          const cdh = new Uint8Array(46 + nameBytes.length);
+          const cView = new DataView(cdh.buffer);
+          cView.setUint32(0, 0x02014b50, true);
+          cView.setUint16(4, 20, true);
+          cView.setUint16(6, 20, true);
+          cView.setUint16(8, 0, true);
+          cView.setUint16(10, 0, true);
+          cView.setUint16(12, 0, true);
+          cView.setUint16(14, 0, true);
+          cView.setUint32(16, crc, true);
+          cView.setUint32(20, dataBytes.length, true);
+          cView.setUint32(24, dataBytes.length, true);
+          cView.setUint16(28, nameBytes.length, true);
+          cView.setUint16(30, 0, true);
+          cView.setUint16(32, 0, true);
+          cView.setUint16(34, 0, true);
+          cView.setUint16(36, 0, true);
+          cView.setUint32(38, 0, true);
+          cView.setUint32(42, offset, true);
+          cdh.set(nameBytes, 46);
+
+          centralChunks.push(cdh);
+          offset += lfh.length + dataBytes.length;
+        }
+
+        const centralDirSize = centralChunks.reduce((acc, c) => acc + c.length, 0);
+        const eocd = new Uint8Array(22);
+        const eView = new DataView(eocd.buffer);
+        eView.setUint32(0, 0x06054b50, true);
+        eView.setUint16(4, 0, true);
+        eView.setUint16(6, 0, true);
+        eView.setUint16(8, files.length, true);
+        eView.setUint16(10, files.length, true);
+        eView.setUint32(12, centralDirSize, true);
+        eView.setUint32(16, offset, true);
+        eView.setUint16(20, 0, true);
+
+        const totalLen = offset + centralDirSize + eocd.length;
+        const result = new Uint8Array(totalLen);
+        let pos = 0;
+        for (const chunk of [...localChunks, ...centralChunks, eocd]) {
+          result.set(chunk, pos);
+          pos += chunk.length;
+        }
+        return result;
+      };
+
+      // Pembaca File .XLSX Biner (ZIP / Deflate via DecompressionStream) saat Admin mengunggah kembali file Excel
+      const parseRealXlsxRows = async (buffer: ArrayBuffer): Promise<string[][]> => {
+        const bytes = new Uint8Array(buffer);
+        const view = new DataView(buffer);
+        const decoder = new TextDecoder('utf-8');
+        const entries: Record<string, string> = {};
+
+        let i = 0;
+        while (i + 30 < bytes.length) {
+          const sig = view.getUint32(i, true);
+          if (sig !== 0x04034b50) break;
+          const flags = view.getUint16(i + 6, true);
+          const method = view.getUint16(i + 8, true);
+          let compSize = view.getUint32(i + 18, true);
+          const nameLen = view.getUint16(i + 26, true);
+          const extraLen = view.getUint16(i + 28, true);
+          const fileName = decoder.decode(bytes.slice(i + 30, i + 30 + nameLen));
+          const dataStart = i + 30 + nameLen + extraLen;
+
+          if ((flags & 0x08) !== 0 && compSize === 0) {
+            let scan = dataStart;
+            while (scan + 16 <= bytes.length) {
+              if (view.getUint32(scan, true) === 0x08074b50) {
+                compSize = view.getUint32(scan + 8, true);
+                break;
+              }
+              scan++;
+            }
+          }
+
+          const compData = bytes.slice(dataStart, dataStart + compSize);
+          if (fileName.endsWith('.xml')) {
+            try {
+              if (method === 0) {
+                entries[fileName] = decoder.decode(compData);
+              } else if (method === 8 && typeof DecompressionStream !== 'undefined') {
+                const ds = new DecompressionStream('deflate-raw');
+                const writer = ds.writable.getWriter();
+                writer.write(compData);
+                writer.close();
+                const outBuf = await new Response(ds.readable).arrayBuffer();
+                entries[fileName] = decoder.decode(outBuf);
+              }
+            } catch {
+              // skip unreadable entry
+            }
+          }
+
+          i = dataStart + compSize + ((flags & 0x08) !== 0 ? 16 : 0);
+        }
+
+        const parser = new DOMParser();
+        const sharedStrings: string[] = [];
+        if (entries['xl/sharedStrings.xml']) {
+          const ssDoc = parser.parseFromString(entries['xl/sharedStrings.xml'], 'application/xml');
+          ssDoc.querySelectorAll('si').forEach((si) => {
+            sharedStrings.push(si.textContent || '');
+          });
+        }
+
+        const sheetKey = Object.keys(entries)
+          .filter((k) => k.startsWith('xl/worksheets/sheet') && k.endsWith('.xml'))
+          .sort()[0];
+        if (!sheetKey) return [];
+
+        const sheetDoc = parser.parseFromString(entries[sheetKey], 'application/xml');
+        const rows: string[][] = [];
+        sheetDoc.querySelectorAll('row').forEach((rowEl) => {
+          const rowVals: string[] = [];
+          rowEl.querySelectorAll('c').forEach((cEl) => {
+            const ref = cEl.getAttribute('r') || '';
+            const colLetters = ref.replace(/[0-9]/g, '');
+            let colIdx = 0;
+            for (let k = 0; k < colLetters.length; k++) {
+              colIdx = colIdx * 26 + (colLetters.charCodeAt(k) - 64);
+            }
+            const targetIdx = colIdx > 0 ? colIdx - 1 : rowVals.length;
+            const tAttr = cEl.getAttribute('t');
+            let val = '';
+            if (tAttr === 's') {
+              const sIdx = Number(cEl.querySelector('v')?.textContent || 0);
+              val = sharedStrings[sIdx] ?? '';
+            } else if (tAttr === 'inlineStr') {
+              val = cEl.querySelector('t')?.textContent || '';
+            } else {
+              val = cEl.querySelector('v')?.textContent || '';
+            }
+            while (rowVals.length < targetIdx) rowVals.push('');
+            rowVals[targetIdx] = val.trim();
+          });
+          if (rowVals.some(Boolean)) rows.push(rowVals);
+        });
+        return rows;
+      };
+
       const downloadImportTemplate = (roleType: 'teacher' | 'student', format: 'xlsx' | 'csv' | 'docx') => {
-        const headers = ['NAMA', 'USERNAME', 'NIP', 'EMAIL', 'PASSWORD'];
-        const sample =
-          roleType === 'teacher'
-            ? ['Ahmad Fauzi, S.Kom', 'ahmad_fauzi', '199105142019031005', 'ahmad.fauzi@darulfikri.sch.id', 'GuruDF2026!']
-            : ['Zaki Alfarizi', 'zaki_alfarizi', '24251099', 'zaki.alfarizi@siswa.darulfikri.sch.id', 'SiswaDF2026!'];
+        const headers = ['Nama', 'User_name', 'NIP', 'Email', 'Password'];
 
         if (format === 'csv') {
-          const csv = `${headers.join(',')}\n${sample.map((s) => `"${s}"`).join(',')}`;
+          const csv = `${headers.join(',')}\n`;
           triggerDownloadBlob(csv, `template_import_${roleType}.csv`, 'text/csv;charset=utf-8;');
         } else if (format === 'xlsx') {
-          const xml = `<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
-<Worksheet ss:Name="Template_${roleType}"><Table>
-<Row>${headers.map((h) => `<Cell><Data ss:Type="String">${h}</Data></Cell>`).join('')}</Row>
-<Row>${sample.map((s) => `<Cell><Data ss:Type="String">${s}</Data></Cell>`).join('')}</Row>
-</Table></Worksheet></Workbook>`;
-          triggerDownloadBlob(xml, `template_import_${roleType}.xlsx`, 'application/vnd.ms-excel');
+          const xlsxBytes = buildRealXlsxUint8Array(`Template_${roleType}`, [headers], {
+            styledTemplate: true,
+            blankRowsCount: 20
+          });
+          triggerDownloadBlob(
+            xlsxBytes,
+            `template_import_${roleType}.xlsx`,
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+          );
         } else {
+          const emptyTrs = Array.from({ length: 15 })
+            .map(() => `<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>`)
+            .join('');
           const docHtml = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word'>
 <head><meta charset='utf-8'></head><body>
-<h2>Template Import Data ${roleType === 'teacher' ? 'Guru' : 'Siswa'} - EDU GAME ARENA</h2>
-<table border="1" cellpadding="6" cellspacing="0">
-<tr>${headers.map((h) => `<th>${h}</th>`).join('')}</tr>
-<tr>${sample.map((s) => `<td>${s}</td>`).join('')}</tr>
+<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;width:100%;">
+<tr style="background:#00B0F0;font-weight:bold;">${headers.map((h) => `<th>${h}</th>`).join('')}</tr>
+${emptyTrs}
 </table></body></html>`;
           triggerDownloadBlob(docHtml, `template_import_${roleType}.docx`, 'application/msword');
         }
-        showToast(`Template ${format.toUpperCase()} (${headers.join(', ')}) berhasil diunduh!`, 'success');
+        showToast(`Template ${format.toUpperCase()} (${headers.join(' | ')}) berhasil diunduh!`, 'success');
       };
 
       const handleParseImportFile = async (file: File) => {
         setImportFileName(file.name);
-        const text = await file.text();
+        const buf = await file.arrayBuffer();
+        const headerBytes = new Uint8Array(buf.slice(0, 4));
         let parsedRows: string[][] = [];
 
-        if (text.includes('<tr') || text.includes('<Row')) {
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(text, 'text/html');
-          const trs = Array.from(doc.querySelectorAll('tr, Row'));
-          parsedRows = trs
-            .map((tr) =>
-              Array.from(tr.querySelectorAll('th, td, Cell')).map((c) => (c.textContent || '').trim())
-            )
-            .filter((r) => r.length >= 3 && r.some(Boolean));
+        // Cek signature ZIP (PK\x03\x04) untuk file .xlsx asli dari Microsoft Excel
+        if (
+          headerBytes[0] === 0x50 &&
+          headerBytes[1] === 0x4b &&
+          headerBytes[2] === 0x03 &&
+          headerBytes[3] === 0x04
+        ) {
+          parsedRows = await parseRealXlsxRows(buf);
         } else {
-          const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
-          parsedRows = lines.map((line) =>
-            line
-              .split(/[,;\t]/)
-              .map((cell) => cell.replace(/^"|"$/g, '').trim())
-          );
+          const text = new TextDecoder('utf-8').decode(buf);
+          if (text.includes('<tr') || text.includes('<Row')) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(text, 'text/html');
+            const trs = Array.from(doc.querySelectorAll('tr, Row'));
+            parsedRows = trs
+              .map((tr) =>
+                Array.from(tr.querySelectorAll('th, td, Cell')).map((c) => (c.textContent || '').trim())
+              )
+              .filter((r) => r.length >= 3 && r.some(Boolean));
+          } else {
+            const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+            parsedRows = lines
+              .map((line) =>
+                line
+                  .split(/[,;\t]/)
+                  .map((cell) => cell.replace(/^"|"$/g, '').trim())
+              )
+              .filter((r) => r.some(Boolean));
+          }
         }
 
-        if (parsedRows.length < 2) {
-          showToast('File kosong atau format tabel tidak terbaca. Gunakan format NAMA, USERNAME, NIP, EMAIL, PASSWORD.', 'error');
+        const nonEmptyDataRows = parsedRows.slice(1).filter((r) => r.some((cell) => cell && cell.trim().length > 0));
+        if (parsedRows.length === 0 || nonEmptyDataRows.length === 0) {
+          showToast('File template masih kosong. Isi minimal 1 baris data (Nama, User_name, NIP, Email, Password) lalu unggah kembali.', 'error');
           return;
         }
         setImportRawHeaders(parsedRows[0]);
-        setImportRawRows(parsedRows.slice(1));
+        setImportRawRows(nonEmptyDataRows);
         setColMap({ fullName: 0, username: 1, nipNis: 2, email: 3, password: 4 });
       };
 
@@ -4334,13 +4696,12 @@ export default function App() {
           const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${c}"`).join(','))].join('\n');
           triggerDownloadBlob(csv, `data_${roleFilter}_darulfikri.csv`, 'text/csv;charset=utf-8;');
         } else if (format === 'xlsx') {
-          const xml = `<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
-<Worksheet ss:Name="Data_${roleFilter}"><Table>
-<Row>${headers.map((h) => `<Cell><Data ss:Type="String">${h}</Data></Cell>`).join('')}</Row>
-${rows.map((r) => `<Row>${r.map((c) => `<Cell><Data ss:Type="String">${c}</Data></Cell>`).join('')}</Row>`).join('')}
-</Table></Worksheet></Workbook>`;
-          triggerDownloadBlob(xml, `data_${roleFilter}_darulfikri.xlsx`, 'application/vnd.ms-excel');
+          const xlsxBytes = buildRealXlsxUint8Array(`Data_${roleFilter}`, [headers, ...rows]);
+          triggerDownloadBlob(
+            xlsxBytes,
+            `data_${roleFilter}_darulfikri.xlsx`,
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+          );
         } else {
           const docHtml = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word'>
 <head><meta charset='utf-8'></head><body>
@@ -4398,13 +4759,12 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
           const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${c}"`).join(','))].join('\n');
           triggerDownloadBlob(csv, 'laporan_hasil_kuis.csv', 'text/csv;charset=utf-8;');
         } else if (format === 'xlsx') {
-          const xml = `<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
-<Worksheet ss:Name="Hasil_Kuis"><Table>
-<Row>${headers.map((h) => `<Cell><Data ss:Type="String">${h}</Data></Cell>`).join('')}</Row>
-${rows.map((r) => `<Row>${r.map((c) => `<Cell><Data ss:Type="String">${c}</Data></Cell>`).join('')}</Row>`).join('')}
-</Table></Worksheet></Workbook>`;
-          triggerDownloadBlob(xml, 'laporan_hasil_kuis.xlsx', 'application/vnd.ms-excel');
+          const xlsxBytes = buildRealXlsxUint8Array('Hasil_Kuis', [headers, ...rows]);
+          triggerDownloadBlob(
+            xlsxBytes,
+            'laporan_hasil_kuis.xlsx',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+          );
         } else {
           const docHtml = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word'>
 <head><meta charset='utf-8'></head><body>
@@ -4790,7 +5150,7 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                       </h2>
                       <p className="text-xs text-slate-400 mt-1">
                         Format wajib 5 kolom (1 kolom per masukan):{' '}
-                        <code className="text-cyan-300 font-bold">NAMA, USERNAME, NIP, EMAIL, PASSWORD</code>
+                        <code className="text-cyan-300 font-bold">Nama | User_name | NIP | Email | Password</code>
                       </p>
                     </div>
                     <div className="flex gap-2">
