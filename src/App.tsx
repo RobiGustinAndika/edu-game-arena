@@ -1286,6 +1286,63 @@ interface AuditLogEntry {
   timestamp: string;
 }
 
+interface SitePortalSettings {
+  brandTitle: string;
+  brandSubtitle: string;
+  logoUrl: string;
+  heroBadge: string;
+  heroTitlePrefix: string;
+  heroTitleHighlight: string;
+  heroTitleSuffix: string;
+  heroSubtitle: string;
+  heroPrimaryBtnText: string;
+  heroSecondaryBtnText: string;
+  stat1Value: string;
+  stat1Label: string;
+  stat2Value: string;
+  stat2Label: string;
+  stat3Value: string;
+  stat3Label: string;
+  homeCatalogTag: string;
+  homeCatalogTitle: string;
+  homeGamesLimit: number;
+  homeGamesSort: 'default' | 'popular' | 'rating';
+  teacherDashboardSubtitle: string;
+  aboutTitle: string;
+  aboutDescription: string;
+}
+
+const DEFAULT_SITE_SETTINGS: SitePortalSettings = {
+  brandTitle: 'EDU GAME ARENA',
+  brandSubtitle: 'Supabase Multiplayer Builder',
+  logoUrl: '',
+  heroBadge: 'POWERED BY SUPABASE POSTGRESQL & REALTIME',
+  heroTitlePrefix: 'Rancang & Mainkan',
+  heroTitleHighlight: 'Game Edukasi Live',
+  heroTitleSuffix: 'Bersama Kelas!',
+  heroSubtitle:
+    'Guru dapat membuat kuis interaktif, tebak gambar, matching puzzle, hingga drag-and-drop tanpa coding melalui Game Creator Studio, didukung validasi skor server-side & Supabase Realtime!',
+  heroPrimaryBtnText: 'Main Sekarang (Gabung Room)',
+  heroSecondaryBtnText: 'Buka Game Creator Studio',
+  stat1Value: '16 Tabel',
+  stat1Label: 'PostgreSQL + RLS',
+  stat2Value: '8 Edge Func',
+  stat2Label: 'Anti-Cheat Server',
+  stat3Value: 'Presence',
+  stat3Label: 'Realtime & Broadcast',
+  homeCatalogTag: 'Arena Populer & Buatan Guru',
+  homeCatalogTitle: 'Katalog Game Edukasi SMK',
+  homeGamesLimit: 6,
+  homeGamesSort: 'default',
+  teacherDashboardSubtitle:
+    'Rancang game di Creator Studio atau buka room multiplayer untuk memulai sesi belajar interaktif.',
+  aboutTitle: 'Tentang EDU GAME ARENA',
+  aboutDescription:
+    'EDU GAME ARENA adalah platform pembelajaran berbasis permainan (Game-Based Learning) modern berbasis Supabase PostgreSQL, Realtime, Storage & Edge Functions yang dirancang khusus untuk meningkatkan antusiasme siswa SMK.'
+};
+
+const SITE_SETTINGS_STORAGE_KEY = 'edu_game_arena_site_settings_v1';
+
 const INITIAL_CLASSES: SchoolClassItem[] = [
   { id: 'cls-1', name: 'X PPLG 1', gradeLevel: 'X', major: 'Pengembangan Perangkat Lunak & Gim', academicYear: '2026/2027', studentCount: 34, isActive: true },
   { id: 'cls-2', name: 'XI RPL 1', gradeLevel: 'XI', major: 'Rekayasa Perangkat Lunak', academicYear: '2026/2027', studentCount: 32, isActive: true },
@@ -1373,8 +1430,20 @@ export default function App() {
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([
     { id: 'aud-1', actorUsername: 'system', actorRole: 'system', action: 'SCHEMA_INIT', target: 'profiles, classes, game_results', timestamp: '2026-11-20 08:00' }
   ]);
+  const [siteSettings, setSiteSettings] = useState<SitePortalSettings>(() => {
+    try {
+      const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(SITE_SETTINGS_STORAGE_KEY) : null;
+      if (raw) return { ...DEFAULT_SITE_SETTINGS, ...JSON.parse(raw) };
+    } catch {
+      // ignore
+    }
+    return DEFAULT_SITE_SETTINGS;
+  });
+  const [draftSiteSettings, setDraftSiteSettings] = useState<SitePortalSettings>(siteSettings);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+
   const [adminMenuTab, setAdminMenuTab] = useState<
-    'overview' | 'teachers' | 'students' | 'classes' | 'games' | 'results' | 'import' | 'export' | 'settings'
+    'overview' | 'appearance' | 'teachers' | 'students' | 'classes' | 'games' | 'results' | 'import' | 'export' | 'settings'
   >('overview');
 
   const recordAuditLog = async (action: string, target: string, details: Record<string, any> = {}) => {
@@ -1610,6 +1679,22 @@ export default function App() {
     // Fetch awal daftar games & leaderboard dari PostgreSQL
     const fetchInitialSupabaseData = async () => {
       try {
+        const { data: dbSite } = await sbClient
+          .from('site_settings')
+          .select('config')
+          .eq('id', 'main')
+          .single();
+        if (dbSite?.config) {
+          const merged = { ...DEFAULT_SITE_SETTINGS, ...dbSite.config };
+          setSiteSettings(merged);
+          setDraftSiteSettings(merged);
+          try {
+            localStorage.setItem(SITE_SETTINGS_STORAGE_KEY, JSON.stringify(merged));
+          } catch {
+            // ignore
+          }
+        }
+
         const { data: dbCategories } = await sbClient
           .from('game_categories')
           .select('name')
@@ -2538,17 +2623,25 @@ export default function App() {
             onClick={() => setActivePage('landing')}
             className="flex items-center gap-2.5 group cursor-pointer text-left"
           >
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 via-cyan-500 to-purple-600 p-0.5 shadow-lg shadow-cyan-500/25">
-              <div className="w-full h-full bg-[#0A0F24] rounded-[10px] flex items-center justify-center">
-                <Gamepad2 className="w-5 h-5 text-emerald-400" />
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 via-cyan-500 to-purple-600 p-0.5 shadow-lg shadow-cyan-500/25 overflow-hidden">
+              <div className="w-full h-full bg-[#0A0F24] rounded-[10px] flex items-center justify-center overflow-hidden">
+                {siteSettings.logoUrl ? (
+                  <img
+                    src={siteSettings.logoUrl}
+                    alt={siteSettings.brandTitle}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <Gamepad2 className="w-5 h-5 text-emerald-400" />
+                )}
               </div>
             </div>
             <div>
               <span className="font-black tracking-wider text-base sm:text-lg bg-gradient-to-r from-emerald-300 via-cyan-400 to-purple-400 bg-clip-text text-transparent block leading-none">
-                EDU GAME ARENA
+                {siteSettings.brandTitle}
               </span>
               <span className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-semibold">
-                Supabase Multiplayer Builder
+                {siteSettings.brandSubtitle}
               </span>
             </div>
           </button>
@@ -2806,149 +2899,157 @@ export default function App() {
   // ==========================================================================
   // 10. HALAMAN UTAMA (LANDING PAGE)
   // ==========================================================================
-  const LandingPage = () => (
-    <div className="space-y-20 pb-20">
-      <section className="relative overflow-hidden pt-12 pb-8 sm:pt-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="grid lg:grid-cols-12 gap-10 items-center">
-            <div className="lg:col-span-7 space-y-6">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-400/30 text-emerald-300 text-xs font-bold">
-                <Database className="w-4 h-4 text-emerald-400" />
-                POWERED BY SUPABASE POSTGRESQL & REALTIME
-              </div>
+  const LandingPage = () => {
+    const landingGames = [...games]
+      .filter((g) => g.status === 'published')
+      .sort((a, b) => {
+        if (siteSettings.homeGamesSort === 'popular') return (b.playsCount || 0) - (a.playsCount || 0);
+        if (siteSettings.homeGamesSort === 'rating') return (b.rating || 0) - (a.rating || 0);
+        return 0;
+      })
+      .slice(0, Math.max(1, Number(siteSettings.homeGamesLimit) || 6));
 
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight text-white leading-[1.1]">
-                Rancang & Mainkan{' '}
-                <span className="bg-gradient-to-r from-emerald-300 via-cyan-400 to-purple-500 bg-clip-text text-transparent">
-                  Game Edukasi Live
-                </span>{' '}
-                Bersama Kelas!
-              </h1>
+    return (
+      <div className="space-y-20 pb-20">
+        <section className="relative overflow-hidden pt-12 pb-8 sm:pt-20">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+            <div className="grid lg:grid-cols-12 gap-10 items-center">
+              <div className="lg:col-span-7 space-y-6">
+                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-400/30 text-emerald-300 text-xs font-bold">
+                  <Database className="w-4 h-4 text-emerald-400" />
+                  {siteSettings.heroBadge}
+                </div>
 
-              <p className="text-base sm:text-lg text-slate-300 max-w-2xl leading-relaxed">
-                Guru dapat membuat kuis interaktif, tebak gambar, matching puzzle, hingga drag-and-drop tanpa coding melalui <strong>Game Creator Studio</strong>, didukung validasi skor server-side & Supabase Realtime!
-              </p>
+                <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight text-white leading-[1.1]">
+                  {siteSettings.heroTitlePrefix}{' '}
+                  <span className="bg-gradient-to-r from-emerald-300 via-cyan-400 to-purple-500 bg-clip-text text-transparent">
+                    {siteSettings.heroTitleHighlight}
+                  </span>{' '}
+                  {siteSettings.heroTitleSuffix}
+                </h1>
 
-              <div className="flex flex-wrap items-center gap-4 pt-2">
-                <button
-                  onClick={() => {
-                    setLoginTab('student');
-                    setActivePage('login');
-                  }}
-                  className="px-7 py-4 rounded-2xl font-black text-sm sm:text-base text-slate-950 bg-gradient-to-r from-emerald-400 via-cyan-400 to-blue-400 hover:brightness-110 shadow-xl shadow-cyan-500/25 flex items-center gap-2.5 transition-all cursor-pointer"
-                >
-                  <Play className="w-5 h-5 fill-slate-950" />
-                  Main Sekarang (Gabung Room)
-                </button>
+                <p className="text-base sm:text-lg text-slate-300 max-w-2xl leading-relaxed">
+                  {siteSettings.heroSubtitle}
+                </p>
 
-                <button
-                  onClick={() => {
-                    if (currentUser && ['teacher', 'admin', 'super_admin'].includes(currentUser.role)) {
-                      setActivePage('creator');
-                    } else {
-                      setLoginTab('teacher');
+                <div className="flex flex-wrap items-center gap-4 pt-2">
+                  <button
+                    onClick={() => {
+                      setLoginTab('student');
                       setActivePage('login');
-                    }
-                  }}
-                  className="px-7 py-4 rounded-2xl font-bold text-sm sm:text-base text-white bg-white/5 hover:bg-white/10 border border-indigo-400/30 flex items-center gap-2 transition-all cursor-pointer"
-                >
-                  <Wand2 className="w-5 h-5 text-cyan-400" />
-                  Buka Game Creator Studio
-                </button>
-              </div>
+                    }}
+                    className="px-7 py-4 rounded-2xl font-black text-sm sm:text-base text-slate-950 bg-gradient-to-r from-emerald-400 via-cyan-400 to-blue-400 hover:brightness-110 shadow-xl shadow-cyan-500/25 flex items-center gap-2.5 transition-all cursor-pointer"
+                  >
+                    <Play className="w-5 h-5 fill-slate-950" />
+                    {siteSettings.heroPrimaryBtnText}
+                  </button>
 
-              <div className="grid grid-cols-3 gap-4 pt-6 border-t border-indigo-500/20 max-w-lg">
-                <div>
-                  <div className="text-2xl sm:text-3xl font-black text-emerald-300">16 Tabel</div>
-                  <div className="text-xs text-slate-400 font-medium">PostgreSQL + RLS</div>
+                  <button
+                    onClick={() => {
+                      if (currentUser && ['teacher', 'admin', 'super_admin'].includes(currentUser.role)) {
+                        setActivePage('creator');
+                      } else {
+                        setLoginTab('teacher');
+                        setActivePage('login');
+                      }
+                    }}
+                    className="px-7 py-4 rounded-2xl font-bold text-sm sm:text-base text-white bg-white/5 hover:bg-white/10 border border-indigo-400/30 flex items-center gap-2 transition-all cursor-pointer"
+                  >
+                    <Wand2 className="w-5 h-5 text-cyan-400" />
+                    {siteSettings.heroSecondaryBtnText}
+                  </button>
                 </div>
-                <div>
-                  <div className="text-2xl sm:text-3xl font-black text-cyan-400">8 Edge Func</div>
-                  <div className="text-xs text-slate-400 font-medium">Anti-Cheat Server</div>
-                </div>
-                <div>
-                  <div className="text-2xl sm:text-3xl font-black text-purple-400">Presence</div>
-                  <div className="text-xs text-slate-400 font-medium">Realtime & Broadcast</div>
-                </div>
-              </div>
-            </div>
 
-            <div className="lg:col-span-5">
-              <div className="rounded-3xl bg-gradient-to-br from-[#0F1736] via-[#131C42] to-[#1A133B] border border-emerald-400/30 p-6 shadow-2xl space-y-5">
-                <div className="flex items-center justify-between border-b border-white/10 pb-4">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-3 h-3 rounded-full bg-rose-500" />
-                    <div className="w-3 h-3 rounded-full bg-amber-400" />
-                    <div className="w-3 h-3 rounded-full bg-emerald-400" />
-                    <span className="text-xs font-mono text-slate-400 ml-2">SUPABASE // REALTIME</span>
+                <div className="grid grid-cols-3 gap-4 pt-6 border-t border-indigo-500/20 max-w-lg">
+                  <div>
+                    <div className="text-2xl sm:text-3xl font-black text-emerald-300">{siteSettings.stat1Value}</div>
+                    <div className="text-xs text-slate-400 font-medium">{siteSettings.stat1Label}</div>
                   </div>
-                  <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-[11px] font-bold">
-                    • 32 SISWA ONLINE
-                  </span>
+                  <div>
+                    <div className="text-2xl sm:text-3xl font-black text-cyan-400">{siteSettings.stat2Value}</div>
+                    <div className="text-xs text-slate-400 font-medium">{siteSettings.stat2Label}</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl sm:text-3xl font-black text-purple-400">{siteSettings.stat3Value}</div>
+                    <div className="text-xs text-slate-400 font-medium">{siteSettings.stat3Label}</div>
+                  </div>
                 </div>
+              </div>
 
-                <div className="p-4 rounded-2xl bg-[#070B19]/80 border border-indigo-500/30 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-cyan-400">ROOM CODE</span>
-                    <span className="font-mono text-lg font-black tracking-widest text-white bg-emerald-500/20 px-3 py-0.5 rounded-lg border border-emerald-400/40">
-                      SMK99X
+              <div className="lg:col-span-5">
+                <div className="rounded-3xl bg-gradient-to-br from-[#0F1736] via-[#131C42] to-[#1A133B] border border-emerald-400/30 p-6 shadow-2xl space-y-5">
+                  <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-3 h-3 rounded-full bg-rose-500" />
+                      <div className="w-3 h-3 rounded-full bg-amber-400" />
+                      <div className="w-3 h-3 rounded-full bg-emerald-400" />
+                      <span className="text-xs font-mono text-slate-400 ml-2">SUPABASE // REALTIME</span>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-[11px] font-bold">
+                      • 32 SISWA ONLINE
                     </span>
                   </div>
-                  <div className="space-y-2">
-                    {[
-                      { name: 'Raka (XII RPL 1)', score: '1.450 PTS', avatar: '🦊', rank: 1 },
-                      { name: 'Nadia (XII TKJ 2)', score: '1.380 PTS', avatar: '🚀', rank: 2 },
-                      { name: 'Dimas (XI RPL 2)', score: '1.210 PTS', avatar: '⚡', rank: 3 }
-                    ].map((p) => (
-                      <div
-                        key={p.rank}
-                        className="flex items-center justify-between p-2.5 rounded-xl bg-white/[0.03] border border-white/5"
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <span className="w-5 text-xs font-black text-amber-400">#{p.rank}</span>
-                          <span className="text-lg">{p.avatar}</span>
-                          <span className="text-xs font-bold text-slate-200">{p.name}</span>
+
+                  <div className="p-4 rounded-2xl bg-[#070B19]/80 border border-indigo-500/30 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-cyan-400">ROOM CODE</span>
+                      <span className="font-mono text-lg font-black tracking-widest text-white bg-emerald-500/20 px-3 py-0.5 rounded-lg border border-emerald-400/40">
+                        SMK99X
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      {[
+                        { name: 'Raka (XII RPL 1)', score: '1.450 PTS', avatar: '🦊', rank: 1 },
+                        { name: 'Nadia (XII TKJ 2)', score: '1.380 PTS', avatar: '🚀', rank: 2 },
+                        { name: 'Dimas (XI RPL 2)', score: '1.210 PTS', avatar: '⚡', rank: 3 }
+                      ].map((p) => (
+                        <div
+                          key={p.rank}
+                          className="flex items-center justify-between p-2.5 rounded-xl bg-white/[0.03] border border-white/5"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <span className="w-5 text-xs font-black text-amber-400">#{p.rank}</span>
+                            <span className="text-lg">{p.avatar}</span>
+                            <span className="text-xs font-bold text-slate-200">{p.name}</span>
+                          </div>
+                          <span className="text-xs font-mono font-bold text-cyan-300">{p.score}</span>
                         </div>
-                        <span className="text-xs font-mono font-bold text-cyan-300">{p.score}</span>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-          <div>
-            <span className="text-xs font-bold uppercase tracking-widest text-cyan-400">
-              Arena Populer & Buatan Guru
-            </span>
-            <h2 className="text-2xl sm:text-3xl font-black text-white mt-1">
-              Katalog Game Edukasi SMK
-            </h2>
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+            <div>
+              <span className="text-xs font-bold uppercase tracking-widest text-cyan-400">
+                {siteSettings.homeCatalogTag}
+              </span>
+              <h2 className="text-2xl sm:text-3xl font-black text-white mt-1">
+                {siteSettings.homeCatalogTitle}
+              </h2>
+            </div>
+            <button
+              onClick={() => setActivePage('catalog')}
+              className="text-sm font-bold text-cyan-300 hover:text-cyan-200 flex items-center gap-1 cursor-pointer"
+            >
+              Lihat Semua Katalog & Filter <ChevronRight className="w-4 h-4" />
+            </button>
           </div>
-          <button
-            onClick={() => setActivePage('catalog')}
-            className="text-sm font-bold text-cyan-300 hover:text-cyan-200 flex items-center gap-1 cursor-pointer"
-          >
-            Lihat Semua Katalog & Filter <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {games
-            .filter((g) => g.status === 'published')
-            .slice(0, 6)
-            .map((game) => (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {landingGames.map((game) => (
               <GameCard key={game.id} game={game} />
             ))}
-        </div>
-      </section>
-    </div>
-  );
+          </div>
+        </section>
+      </div>
+    );
+  };
 
   // ==========================================================================
   // 11. GAME CREATOR STUDIO (BUILDER 8 TEMPLATE + SUPABASE STORAGE + PREVIEW)
@@ -4042,7 +4143,7 @@ export default function App() {
                 Selamat Datang, {currentUser.name}
               </h1>
               <p className="text-xs sm:text-sm text-slate-300 mt-1">
-                Rancang game di Creator Studio atau buka room multiplayer untuk memulai sesi belajar interaktif.
+                {siteSettings.teacherDashboardSubtitle}
               </p>
             </div>
             <div className="flex flex-wrap gap-2.5 self-start">
@@ -4955,6 +5056,7 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
 
       const adminSidebarItems = [
         { id: 'overview', label: 'Dashboard', icon: BarChart3 },
+        { id: 'appearance', label: 'Tampilan & Logo', icon: ImageIcon },
         { id: 'teachers', label: 'Data Guru', icon: UserCheck },
         { id: 'students', label: 'Data Siswa', icon: Users },
         { id: 'classes', label: 'Data Kelas', icon: Building2 },
@@ -4989,7 +5091,10 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                   return (
                     <button
                       key={item.id}
-                      onClick={() => setAdminMenuTab(item.id as any)}
+                      onClick={() => {
+                        if (item.id === 'appearance') setDraftSiteSettings(siteSettings);
+                        setAdminMenuTab(item.id as any);
+                      }}
                       className={`px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2.5 whitespace-nowrap transition-all cursor-pointer ${
                         active
                           ? 'bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 font-black shadow-md'
@@ -5006,6 +5111,451 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
 
             {/* Konten Utama Admin */}
             <div className="lg:col-span-9 space-y-6">
+              {adminMenuTab === 'appearance' && (
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    setSiteSettings(draftSiteSettings);
+                    try {
+                      localStorage.setItem(SITE_SETTINGS_STORAGE_KEY, JSON.stringify(draftSiteSettings));
+                    } catch {
+                      // ignore
+                    }
+                    if (sbClient) {
+                      try {
+                        await sbClient.from('site_settings').upsert({
+                          id: 'main',
+                          config: draftSiteSettings,
+                          updated_at: new Date().toISOString()
+                        });
+                      } catch {
+                        // fallback localStorage if table not yet migrated
+                      }
+                    }
+                    await recordAuditLog('UPDATE_PORTAL_APPEARANCE', 'site_settings', {
+                      brandTitle: draftSiteSettings.brandTitle,
+                      homeGamesLimit: draftSiteSettings.homeGamesLimit
+                    });
+                    showToast('Pengaturan tampilan beranda, logo & teks berhasil disimpan!', 'success');
+                  }}
+                  className="space-y-6"
+                >
+                  <div className="rounded-3xl bg-[#0D132B] border border-cyan-500/30 p-6 flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                      <span className="px-2.5 py-1 rounded-full bg-cyan-500/15 text-cyan-300 text-[10px] font-black uppercase">
+                        CMS PORTAL & BRANDING SEKOLAH
+                      </span>
+                      <h2 className="text-xl font-black text-white mt-1.5">
+                        Kustomisasi Logo, Teks Beranda & Dashboard
+                      </h2>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Ubah logo institusi, judul utama halaman depan, teks sambutan dashboard, dan jumlah game di beranda.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDraftSiteSettings(DEFAULT_SITE_SETTINGS);
+                          showToast('Form dikembalikan ke teks bawaan. Klik Simpan Perubahan untuk menerapkan.', 'info');
+                        }}
+                        className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-200 text-xs font-bold cursor-pointer"
+                      >
+                        Reset Default
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-lg cursor-pointer"
+                      >
+                        <Save className="w-4 h-4" /> Simpan & Terapkan
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Bagian 1: Logo & Identitas Portal */}
+                  <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/25 p-6 space-y-5">
+                    <h3 className="text-base font-black text-white flex items-center gap-2">
+                      <ImageIcon className="w-5 h-5 text-emerald-400" />
+                      1. Logo & Identitas Portal (Navbar)
+                    </h3>
+
+                    <div className="grid md:grid-cols-12 gap-6 items-center">
+                      <div className="md:col-span-4 flex flex-col items-center justify-center p-5 rounded-2xl bg-[#070B19] border border-slate-800 space-y-3">
+                        <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-400 via-cyan-500 to-purple-600 p-0.5 overflow-hidden shadow-lg">
+                          <div className="w-full h-full bg-[#0A0F24] rounded-[14px] flex items-center justify-center overflow-hidden">
+                            {draftSiteSettings.logoUrl ? (
+                              <img
+                                src={draftSiteSettings.logoUrl}
+                                alt="Preview Logo"
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <Gamepad2 className="w-9 h-9 text-emerald-400" />
+                            )}
+                          </div>
+                        </div>
+                        <span className="text-[11px] text-slate-400 font-semibold">Pratinjau Logo Navbar</span>
+                        {draftSiteSettings.logoUrl && (
+                          <button
+                            type="button"
+                            onClick={() => setDraftSiteSettings({ ...draftSiteSettings, logoUrl: '' })}
+                            className="text-[11px] text-rose-400 hover:underline font-bold cursor-pointer"
+                          >
+                            Hapus Logo (Gunakan Ikon Bawaan)
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="md:col-span-8 space-y-3">
+                        <div className="grid sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                              Nama Utama Portal / Sekolah
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              value={draftSiteSettings.brandTitle}
+                              onChange={(e) =>
+                                setDraftSiteSettings({ ...draftSiteSettings, brandTitle: e.target.value })
+                              }
+                              className="w-full px-3.5 py-2.5 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs font-bold"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                              Subjudul / Slogan Singkat
+                            </label>
+                            <input
+                              type="text"
+                              value={draftSiteSettings.brandSubtitle}
+                              onChange={(e) =>
+                                setDraftSiteSettings({ ...draftSiteSettings, brandSubtitle: e.target.value })
+                              }
+                              className="w-full px-3.5 py-2.5 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                            Upload File Logo Baru (PNG, JPG, WEBP, SVG — Maks. 3 MB)
+                          </label>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            disabled={uploadingLogo}
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              try {
+                                setUploadingLogo(true);
+                                const url = await handleUploadAssetFile(file, 'game-thumbnails');
+                                setDraftSiteSettings((prev) => ({ ...prev, logoUrl: url }));
+                                showToast('Logo berhasil diunggah! Klik Simpan & Terapkan.', 'success');
+                              } catch (err: any) {
+                                showToast(err.message || 'Gagal mengunggah logo.', 'error');
+                              } finally {
+                                setUploadingLogo(false);
+                              }
+                            }}
+                            className="w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-black file:bg-cyan-400 file:text-slate-950 cursor-pointer"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                            Atau Tempel URL Gambar Logo Eksternal (Opsional)
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="https://..."
+                            value={draftSiteSettings.logoUrl}
+                            onChange={(e) =>
+                              setDraftSiteSettings({ ...draftSiteSettings, logoUrl: e.target.value })
+                            }
+                            className="w-full px-3.5 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-cyan-300 font-mono text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bagian 2: Teks Halaman Depan (Hero Section) */}
+                  <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/25 p-6 space-y-4">
+                    <h3 className="text-base font-black text-white">
+                      2. Teks Hero Halaman Depan (Landing Page)
+                    </h3>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                        Teks Badge Atas (Pill Header)
+                      </label>
+                      <input
+                        type="text"
+                        value={draftSiteSettings.heroBadge}
+                        onChange={(e) =>
+                          setDraftSiteSettings({ ...draftSiteSettings, heroBadge: e.target.value })
+                        }
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-[#070B19] border border-slate-700 text-emerald-300 text-xs font-bold"
+                      />
+                    </div>
+
+                    <div className="grid sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                          Judul Baris 1 (Putih)
+                        </label>
+                        <input
+                          type="text"
+                          value={draftSiteSettings.heroTitlePrefix}
+                          onChange={(e) =>
+                            setDraftSiteSettings({ ...draftSiteSettings, heroTitlePrefix: e.target.value })
+                          }
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                          Judul Sorotan (Gradasi Warna)
+                        </label>
+                        <input
+                          type="text"
+                          value={draftSiteSettings.heroTitleHighlight}
+                          onChange={(e) =>
+                            setDraftSiteSettings({ ...draftSiteSettings, heroTitleHighlight: e.target.value })
+                          }
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-[#070B19] border border-slate-700 text-cyan-300 text-xs font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                          Judul Baris 3 (Putih)
+                        </label>
+                        <input
+                          type="text"
+                          value={draftSiteSettings.heroTitleSuffix}
+                          onChange={(e) =>
+                            setDraftSiteSettings({ ...draftSiteSettings, heroTitleSuffix: e.target.value })
+                          }
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs font-bold"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                        Deskripsi Utama Halaman Depan
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={draftSiteSettings.heroSubtitle}
+                        onChange={(e) =>
+                          setDraftSiteSettings({ ...draftSiteSettings, heroSubtitle: e.target.value })
+                        }
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-[#070B19] border border-slate-700 text-slate-200 text-xs leading-relaxed"
+                      />
+                    </div>
+
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                          Teks Tombol Utama (Siswa)
+                        </label>
+                        <input
+                          type="text"
+                          value={draftSiteSettings.heroPrimaryBtnText}
+                          onChange={(e) =>
+                            setDraftSiteSettings({ ...draftSiteSettings, heroPrimaryBtnText: e.target.value })
+                          }
+                          className="w-full px-3.5 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                          Teks Tombol Kedua (Guru)
+                        </label>
+                        <input
+                          type="text"
+                          value={draftSiteSettings.heroSecondaryBtnText}
+                          onChange={(e) =>
+                            setDraftSiteSettings({ ...draftSiteSettings, heroSecondaryBtnText: e.target.value })
+                          }
+                          className="w-full px-3.5 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid sm:grid-cols-3 gap-3 pt-2 border-t border-slate-800">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-emerald-400 uppercase">Statistik 1</label>
+                        <input
+                          type="text"
+                          value={draftSiteSettings.stat1Value}
+                          onChange={(e) => setDraftSiteSettings({ ...draftSiteSettings, stat1Value: e.target.value })}
+                          className="w-full px-3 py-1.5 rounded-lg bg-[#070B19] border border-slate-700 text-white text-xs font-bold"
+                        />
+                        <input
+                          type="text"
+                          value={draftSiteSettings.stat1Label}
+                          onChange={(e) => setDraftSiteSettings({ ...draftSiteSettings, stat1Label: e.target.value })}
+                          className="w-full px-3 py-1.5 rounded-lg bg-[#070B19] border border-slate-700 text-slate-300 text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-cyan-400 uppercase">Statistik 2</label>
+                        <input
+                          type="text"
+                          value={draftSiteSettings.stat2Value}
+                          onChange={(e) => setDraftSiteSettings({ ...draftSiteSettings, stat2Value: e.target.value })}
+                          className="w-full px-3 py-1.5 rounded-lg bg-[#070B19] border border-slate-700 text-white text-xs font-bold"
+                        />
+                        <input
+                          type="text"
+                          value={draftSiteSettings.stat2Label}
+                          onChange={(e) => setDraftSiteSettings({ ...draftSiteSettings, stat2Label: e.target.value })}
+                          className="w-full px-3 py-1.5 rounded-lg bg-[#070B19] border border-slate-700 text-slate-300 text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-purple-400 uppercase">Statistik 3</label>
+                        <input
+                          type="text"
+                          value={draftSiteSettings.stat3Value}
+                          onChange={(e) => setDraftSiteSettings({ ...draftSiteSettings, stat3Value: e.target.value })}
+                          className="w-full px-3 py-1.5 rounded-lg bg-[#070B19] border border-slate-700 text-white text-xs font-bold"
+                        />
+                        <input
+                          type="text"
+                          value={draftSiteSettings.stat3Label}
+                          onChange={(e) => setDraftSiteSettings({ ...draftSiteSettings, stat3Label: e.target.value })}
+                          className="w-full px-3 py-1.5 rounded-lg bg-[#070B19] border border-slate-700 text-slate-300 text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bagian 3: Pengaturan Katalog Beranda, Dashboard Guru & Halaman Tentang */}
+                  <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/25 p-6 space-y-4">
+                    <h3 className="text-base font-black text-white">
+                      3. Tampilan Katalog Game di Beranda & Teks Dashboard
+                    </h3>
+
+                    <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                          Label Kecil Katalog Beranda
+                        </label>
+                        <input
+                          type="text"
+                          value={draftSiteSettings.homeCatalogTag}
+                          onChange={(e) =>
+                            setDraftSiteSettings({ ...draftSiteSettings, homeCatalogTag: e.target.value })
+                          }
+                          className="w-full px-3 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-cyan-300 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                          Judul Katalog Beranda
+                        </label>
+                        <input
+                          type="text"
+                          value={draftSiteSettings.homeCatalogTitle}
+                          onChange={(e) =>
+                            setDraftSiteSettings({ ...draftSiteSettings, homeCatalogTitle: e.target.value })
+                          }
+                          className="w-full px-3 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                          Jumlah Tampilan Game di Beranda
+                        </label>
+                        <select
+                          value={draftSiteSettings.homeGamesLimit}
+                          onChange={(e) =>
+                            setDraftSiteSettings({ ...draftSiteSettings, homeGamesLimit: Number(e.target.value) })
+                          }
+                          className="w-full px-3 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs font-bold"
+                        >
+                          <option value={3}>3 Game (1 Baris)</option>
+                          <option value={6}>6 Game (2 Baris)</option>
+                          <option value={9}>9 Game (3 Baris)</option>
+                          <option value={12}>12 Game (4 Baris)</option>
+                          <option value={50}>Tampilkan Semua Game</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                          Urutan Tampilan Game Beranda
+                        </label>
+                        <select
+                          value={draftSiteSettings.homeGamesSort}
+                          onChange={(e) =>
+                            setDraftSiteSettings({
+                              ...draftSiteSettings,
+                              homeGamesSort: e.target.value as 'default' | 'popular' | 'rating'
+                            })
+                          }
+                          className="w-full px-3 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs"
+                        >
+                          <option value="default">Terbaru / Kurasi Default</option>
+                          <option value="popular">Paling Sering Dimainkan</option>
+                          <option value="rating">Rating Tertinggi</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                        Teks Sambutan Dashboard Guru
+                      </label>
+                      <input
+                        type="text"
+                        value={draftSiteSettings.teacherDashboardSubtitle}
+                        onChange={(e) =>
+                          setDraftSiteSettings({
+                            ...draftSiteSettings,
+                            teacherDashboardSubtitle: e.target.value
+                          })
+                        }
+                        className="w-full px-3.5 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs"
+                      />
+                    </div>
+
+                    <div className="grid sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                          Judul Halaman Tentang
+                        </label>
+                        <input
+                          type="text"
+                          value={draftSiteSettings.aboutTitle}
+                          onChange={(e) =>
+                            setDraftSiteSettings({ ...draftSiteSettings, aboutTitle: e.target.value })
+                          }
+                          className="w-full px-3.5 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs font-bold"
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                          Deskripsi Halaman Tentang
+                        </label>
+                        <input
+                          type="text"
+                          value={draftSiteSettings.aboutDescription}
+                          onChange={(e) =>
+                            setDraftSiteSettings({ ...draftSiteSettings, aboutDescription: e.target.value })
+                          }
+                          className="w-full px-3.5 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-slate-200 text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </form>
+              )}
+
               {adminMenuTab === 'overview' && (
                 <>
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -7352,9 +7902,9 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
         {activePage === 'about' && (
           <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12">
             <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/30 p-8 space-y-4">
-              <h1 className="text-3xl font-black text-white">Tentang EDU GAME ARENA</h1>
+              <h1 className="text-3xl font-black text-white">{siteSettings.aboutTitle}</h1>
               <p className="text-slate-300 leading-relaxed">
-                <strong>EDU GAME ARENA</strong> adalah platform pembelajaran berbasis permainan (Game-Based Learning) modern berbasis <strong>Supabase PostgreSQL, Realtime, Storage & Edge Functions</strong> yang dirancang khusus untuk meningkatkan antusiasme siswa SMK.
+                {siteSettings.aboutDescription}
               </p>
               <div className="grid sm:grid-cols-3 gap-4 pt-4">
                 <div className="p-4 rounded-2xl bg-[#070B19] border border-slate-800">
