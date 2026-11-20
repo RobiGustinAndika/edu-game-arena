@@ -1388,7 +1388,49 @@ const DEFAULT_LEADERBOARD: LeaderboardEntry[] = [
 // ============================================================================
 // 4. KOMPONEN UTAMA APLIKASI EDU GAME ARENA (SUPABASE EDITION)
 // ============================================================================
+class ArenaErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; errorMsg: string }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, errorMsg: '' };
+  }
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, errorMsg: error?.message || 'Terjadi kesalahan tampilan.' };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-[#070B19] text-white flex items-center justify-center p-6">
+          <div className="max-w-md w-full rounded-3xl bg-[#0D132B] border border-rose-500/40 p-6 text-center space-y-4">
+            <h2 className="text-xl font-black text-rose-400">Terjadi Gangguan Tampilan</h2>
+            <p className="text-xs text-slate-300 font-mono bg-[#070B19] p-3 rounded-xl">
+              {this.state.errorMsg}
+            </p>
+            <button
+              onClick={() => this.setState({ hasError: false, errorMsg: '' })}
+              className="px-5 py-2.5 rounded-xl bg-cyan-400 text-slate-950 font-black text-xs cursor-pointer"
+            >
+              Muat Ulang Halaman
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
+  return (
+    <ArenaErrorBoundary>
+      <EduGameArenaMain />
+    </ArenaErrorBoundary>
+  );
+}
+
+function EduGameArenaMain() {
   // Supabase Runtime Config State
   const [supabaseUrlInput, setSupabaseUrlInput] = useState(INITIAL_SUPABASE_URL);
   const [supabaseAnonKeyInput, setSupabaseAnonKeyInput] = useState(INITIAL_SUPABASE_ANON_KEY);
@@ -1674,6 +1716,32 @@ export default function App() {
         : leaderboard.filter((item) => item.period === leaderboardFilter || item.period === 'keseluruhan');
     return [...base].sort((a, b) => b.totalScore - a.totalScore);
   }, [leaderboard, leaderboardFilter]);
+
+  // Pre-computed student directory & autocomplete suggestions at top-level App (avoids conditional Hook calls)
+  const combinedStudents = useMemo(() => {
+    const map = new Map<string, { id: string; fullName: string; className: string }>();
+    managedAccounts
+      .filter((a) => a.role === 'student' && a.isActive)
+      .forEach((a) => {
+        map.set(a.fullName.toLowerCase(), {
+          id: a.id,
+          fullName: a.fullName,
+          className: a.className
+        });
+      });
+    dbStudentDirectory.forEach((s) => {
+      map.set(s.fullName.toLowerCase(), s);
+    });
+    return Array.from(map.values());
+  }, [managedAccounts, dbStudentDirectory]);
+
+  const filteredStudentMatches = useMemo(() => {
+    const q = studentNameInput.trim().toLowerCase();
+    if (!q) return [];
+    return combinedStudents
+      .filter((s) => s.fullName.toLowerCase().includes(q))
+      .slice(0, 8);
+  }, [combinedStudents, studentNameInput]);
 
   // ==========================================================================
   // 5. EFEK SUPABASE AUTH & REALTIME SUBSCRIPTIONS (POSTGRES + PRESENCE + BROADCAST)
@@ -3995,30 +4063,6 @@ export default function App() {
   // ==========================================================================
   const LoginAndJoinPage = () => {
     const avatars = ['🎮', '🦊', '🚀', '⚡', '🤖', '🐉', '🔥', '🛡️'];
-    const combinedStudents = useMemo(() => {
-      const map = new Map<string, { id: string; fullName: string; className: string }>();
-      managedAccounts
-        .filter((a) => a.role === 'student' && a.isActive)
-        .forEach((a) => {
-          map.set(a.fullName.toLowerCase(), {
-            id: a.id,
-            fullName: a.fullName,
-            className: a.className
-          });
-        });
-      dbStudentDirectory.forEach((s) => {
-        map.set(s.fullName.toLowerCase(), s);
-      });
-      return Array.from(map.values());
-    }, [managedAccounts, dbStudentDirectory]);
-
-    const filteredStudentMatches = useMemo(() => {
-      const q = studentNameInput.trim().toLowerCase();
-      if (!q) return [];
-      return combinedStudents
-        .filter((s) => s.fullName.toLowerCase().includes(q))
-        .slice(0, 8);
-    }, [combinedStudents, studentNameInput]);
 
     return (
       <div className="max-w-xl mx-auto px-4 py-12">
