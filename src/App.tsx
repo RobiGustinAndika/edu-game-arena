@@ -1504,6 +1504,9 @@ export default function App() {
   // Login / Join Form States
   const [loginTab, setLoginTab] = useState<'student' | 'teacher' | 'admin' | 'super_admin'>('student');
   const [studentNameInput, setStudentNameInput] = useState('');
+  const [studentClassInput, setStudentClassInput] = useState('XI RPL 1');
+  const [showStudentSuggestions, setShowStudentSuggestions] = useState(false);
+  const [dbStudentDirectory, setDbStudentDirectory] = useState<{ id: string; fullName: string; className: string }[]>([]);
   const [studentTeamInput, setStudentTeamInput] = useState('Tim Alpha');
   const [roomCodeInput, setRoomCodeInput] = useState('');
   const [studentAvatarInput, setStudentAvatarInput] = useState('🎮');
@@ -1691,6 +1694,41 @@ export default function App() {
     // Fetch awal daftar games & leaderboard dari PostgreSQL
     const fetchInitialSupabaseData = async () => {
       try {
+        const { data: dbClasses } = await sbClient
+          .from('classes')
+          .select('*')
+          .order('name', { ascending: true });
+        if (dbClasses && dbClasses.length > 0) {
+          const mappedClasses: SchoolClassItem[] = dbClasses.map((c: any) => ({
+            id: c.id,
+            name: c.name,
+            gradeLevel: c.grade_level || 'XI',
+            major: c.major || 'RPL / TKJ',
+            academicYear: c.academic_year || '2026/2027',
+            studentCount: 0,
+            isActive: c.is_active !== false
+          }));
+          setSchoolClasses(mappedClasses);
+          setStudentClassInput((prev) => prev || mappedClasses[0].name);
+        }
+
+        const { data: dbStudents } = await sbClient
+          .from('profiles')
+          .select('id, full_name, class_name, role_code, is_active')
+          .eq('role_code', 'student')
+          .order('full_name', { ascending: true });
+        if (dbStudents && dbStudents.length > 0) {
+          setDbStudentDirectory(
+            dbStudents
+              .filter((s: any) => s.is_active !== false && s.full_name)
+              .map((s: any) => ({
+                id: s.id,
+                fullName: s.full_name,
+                className: s.class_name || ''
+              }))
+          );
+        }
+
         const { data: dbSite } = await sbClient
           .from('site_settings')
           .select('config')
@@ -2152,10 +2190,16 @@ export default function App() {
   const handleJoinRoomAsStudent = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanName = studentNameInput.trim();
+    const cleanClass = studentClassInput.trim();
     const cleanCode = roomCodeInput.trim().toUpperCase();
+    const displayFullLabel = cleanClass ? `${cleanName} (${cleanClass})` : cleanName;
 
     if (!cleanName || cleanName.length < 2) {
-      showToast('Masukkan nama pemain minimal 2 karakter.', 'error');
+      showToast('Masukkan nama lengkap siswa minimal 2 karakter.', 'error');
+      return;
+    }
+    if (!cleanClass) {
+      showToast('Pilih kelas siswa terlebih dahulu.', 'error');
       return;
     }
     if (!cleanCode || cleanCode.length < 4) {
@@ -2176,7 +2220,7 @@ export default function App() {
     const userProfile = {
       uid: studentUid,
       username: cleanName.toLowerCase().replace(/[^a-z0-9]/g, '_'),
-      name: cleanName,
+      name: displayFullLabel,
       email: `${cleanName.toLowerCase().replace(/\s+/g, '')}@siswa.darulfikri.sch.id`,
       role: 'student' as const,
       avatar: studentAvatarInput,
@@ -2293,7 +2337,8 @@ export default function App() {
           body: {
             room_code: cleanCode,
             player_id: studentUid,
-            display_name: cleanName,
+            display_name: displayFullLabel,
+            class_name: cleanClass,
             team_name: studentTeamInput.trim() || 'Tim Garuda',
             avatar: studentAvatarInput
           }
@@ -2307,7 +2352,7 @@ export default function App() {
       ...(targetRoom.players || {}),
       [studentUid]: {
         uid: studentUid,
-        name: cleanName,
+        name: displayFullLabel,
         teamName: studentTeamInput.trim() || 'Tim Garuda',
         avatar: studentAvatarInput,
         score: 0,
@@ -3950,6 +3995,31 @@ export default function App() {
   // ==========================================================================
   const LoginAndJoinPage = () => {
     const avatars = ['🎮', '🦊', '🚀', '⚡', '🤖', '🐉', '🔥', '🛡️'];
+    const combinedStudents = useMemo(() => {
+      const map = new Map<string, { id: string; fullName: string; className: string }>();
+      managedAccounts
+        .filter((a) => a.role === 'student' && a.isActive)
+        .forEach((a) => {
+          map.set(a.fullName.toLowerCase(), {
+            id: a.id,
+            fullName: a.fullName,
+            className: a.className
+          });
+        });
+      dbStudentDirectory.forEach((s) => {
+        map.set(s.fullName.toLowerCase(), s);
+      });
+      return Array.from(map.values());
+    }, [managedAccounts, dbStudentDirectory]);
+
+    const filteredStudentMatches = useMemo(() => {
+      const q = studentNameInput.trim().toLowerCase();
+      if (!q) return [];
+      return combinedStudents
+        .filter((s) => s.fullName.toLowerCase().includes(q))
+        .slice(0, 8);
+    }, [combinedStudents, studentNameInput]);
+
     return (
       <div className="max-w-xl mx-auto px-4 py-12">
         <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/30 p-6 sm:p-8 shadow-2xl space-y-6">
@@ -3997,18 +4067,78 @@ export default function App() {
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-                  Nama Lengkap & Kelas
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Contoh: Raka Pratama (XI RPL 1)"
-                  value={studentNameInput}
-                  onChange={(e) => setStudentNameInput(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-[#070B19] border border-slate-700 text-white text-sm focus:outline-none focus:border-cyan-400"
-                />
+              <div className="grid sm:grid-cols-12 gap-3">
+                <div className="sm:col-span-7 relative">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                    Nama Lengkap Siswa
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    autoComplete="off"
+                    placeholder="Ketik nama siswa..."
+                    value={studentNameInput}
+                    onFocus={() => setShowStudentSuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowStudentSuggestions(false), 180)}
+                    onChange={(e) => {
+                      setStudentNameInput(e.target.value);
+                      setShowStudentSuggestions(true);
+                    }}
+                    className="w-full px-4 py-3 rounded-xl bg-[#070B19] border border-slate-700 text-white text-sm focus:outline-none focus:border-cyan-400"
+                  />
+
+                  {showStudentSuggestions && filteredStudentMatches.length > 0 && (
+                    <div className="absolute left-0 right-0 mt-1.5 rounded-2xl bg-[#0B1229] border border-cyan-500/40 shadow-2xl z-30 max-h-52 overflow-y-auto divide-y divide-slate-800/80">
+                      {filteredStudentMatches.map((stu) => (
+                        <button
+                          type="button"
+                          key={stu.id}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            setStudentNameInput(stu.fullName);
+                            if (stu.className) {
+                              setStudentClassInput(stu.className);
+                            }
+                            setShowStudentSuggestions(false);
+                          }}
+                          className="w-full px-3.5 py-2.5 text-left hover:bg-cyan-500/15 transition-colors flex items-center justify-between gap-2 cursor-pointer"
+                        >
+                          <span className="text-xs font-bold text-white truncate">{stu.fullName}</span>
+                          {stu.className && (
+                            <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 text-[10px] font-bold shrink-0">
+                              {stu.className}
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="sm:col-span-5">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                    Kelas
+                  </label>
+                  <select
+                    required
+                    value={studentClassInput}
+                    onChange={(e) => setStudentClassInput(e.target.value)}
+                    className="w-full px-3.5 py-3 rounded-xl bg-[#070B19] border border-slate-700 text-white text-sm focus:outline-none focus:border-cyan-400"
+                  >
+                    <option value="">-- Pilih Kelas --</option>
+                    {schoolClasses
+                      .filter((c) => c.isActive)
+                      .map((cls) => (
+                        <option key={cls.id} value={cls.name}>
+                          {cls.name}
+                        </option>
+                      ))}
+                    {studentClassInput &&
+                      !schoolClasses.some((cls) => cls.name === studentClassInput) && (
+                        <option value={studentClassInput}>{studentClassInput}</option>
+                      )}
+                  </select>
+                </div>
               </div>
 
               <div>
