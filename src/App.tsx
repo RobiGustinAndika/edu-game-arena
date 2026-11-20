@@ -1310,6 +1310,12 @@ interface SitePortalSettings {
   teacherDashboardSubtitle: string;
   aboutTitle: string;
   aboutDescription: string;
+  aboutCard1Title: string;
+  aboutCard1Desc: string;
+  aboutCard2Title: string;
+  aboutCard2Desc: string;
+  aboutCard3Title: string;
+  aboutCard3Desc: string;
 }
 
 const DEFAULT_SITE_SETTINGS: SitePortalSettings = {
@@ -1338,7 +1344,13 @@ const DEFAULT_SITE_SETTINGS: SitePortalSettings = {
     'Rancang game di Creator Studio atau buka room multiplayer untuk memulai sesi belajar interaktif.',
   aboutTitle: 'Tentang EDU GAME ARENA',
   aboutDescription:
-    'EDU GAME ARENA adalah platform pembelajaran berbasis permainan (Game-Based Learning) modern berbasis Supabase PostgreSQL, Realtime, Storage & Edge Functions yang dirancang khusus untuk meningkatkan antusiasme siswa SMK.'
+    'EDU GAME ARENA adalah platform pembelajaran berbasis permainan (Game-Based Learning) modern berbasis Supabase PostgreSQL, Realtime, Storage & Edge Functions yang dirancang khusus untuk meningkatkan antusiasme siswa SMK.',
+  aboutCard1Title: 'Supabase Realtime',
+  aboutCard1Desc: 'Presence status online siswa, broadcast pergantian soal, dan klasemen langsung.',
+  aboutCard2Title: 'Edge Functions Anti-Cheat',
+  aboutCard2Desc: 'Kunci jawaban dikunci dengan RLS dan skor divalidasi langsung di server.',
+  aboutCard3Title: 'Game Creator Studio',
+  aboutCard3Desc: '8 template interaktif siap pakai dengan penyimpanan aset di Supabase Storage.'
 };
 
 const SITE_SETTINGS_STORAGE_KEY = 'edu_game_arena_site_settings_v1';
@@ -5524,32 +5536,99 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                       />
                     </div>
 
-                    <div className="grid sm:grid-cols-3 gap-3">
-                      <div>
-                        <label className="text-[11px] font-bold text-slate-400 block mb-1">
-                          Judul Halaman Tentang
-                        </label>
-                        <input
-                          type="text"
-                          value={draftSiteSettings.aboutTitle}
-                          onChange={(e) =>
-                            setDraftSiteSettings({ ...draftSiteSettings, aboutTitle: e.target.value })
-                          }
-                          className="w-full px-3.5 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs font-bold"
-                        />
+                    <div className="pt-4 border-t border-slate-800 space-y-4">
+                      <h4 className="text-sm font-black text-cyan-300">
+                        4. Konten Lengkap Halaman Menu &ldquo;Tentang&rdquo;
+                      </h4>
+                      <div className="grid sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                            Judul Halaman Tentang
+                          </label>
+                          <input
+                            type="text"
+                            value={draftSiteSettings.aboutTitle}
+                            onChange={(e) =>
+                              setDraftSiteSettings({ ...draftSiteSettings, aboutTitle: e.target.value })
+                            }
+                            className="w-full px-3.5 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs font-bold"
+                          />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                            Deskripsi Utama Halaman Tentang
+                          </label>
+                          <textarea
+                            rows={2}
+                            value={draftSiteSettings.aboutDescription}
+                            onChange={(e) =>
+                              setDraftSiteSettings({ ...draftSiteSettings, aboutDescription: e.target.value })
+                            }
+                            className="w-full px-3.5 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-slate-200 text-xs"
+                          />
+                        </div>
                       </div>
-                      <div className="sm:col-span-2">
-                        <label className="text-[11px] font-bold text-slate-400 block mb-1">
-                          Deskripsi Halaman Tentang
-                        </label>
-                        <input
-                          type="text"
-                          value={draftSiteSettings.aboutDescription}
-                          onChange={(e) =>
-                            setDraftSiteSettings({ ...draftSiteSettings, aboutDescription: e.target.value })
-                          }
-                          className="w-full px-3.5 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-slate-200 text-xs"
-                        />
+
+                      <div className="grid sm:grid-cols-3 gap-3">
+                        <div className="p-3 rounded-2xl bg-[#070B19] border border-slate-800 space-y-2">
+                          <label className="text-[10px] font-bold text-emerald-400 uppercase">Kartu Fitur 1</label>
+                          <input
+                            type="text"
+                            value={draftSiteSettings.aboutCard1Title}
+                            onChange={(e) =>
+                              setDraftSiteSettings({ ...draftSiteSettings, aboutCard1Title: e.target.value })
+                            }
+                            className="w-full px-3 py-1.5 rounded-lg bg-[#0D132B] border border-slate-700 text-white text-xs font-bold"
+                          />
+                          <textarea
+                            rows={2}
+                            value={draftSiteSettings.aboutCard1Desc}
+                            onChange={(e) =>
+                              setDraftSiteSettings({ ...draftSiteSettings, aboutCard1Desc: e.target.value })
+                            }
+                            className="w-full px-3 py-1.5 rounded-lg bg-[#0D132B] border border-slate-700 text-slate-300 text-xs"
+                          />
+                        </div>
+
+                        <div className="p-3 rounded-2xl bg-[#070B19] border border-slate-800 space-y-2">
+                          <label className="text-[10px] font-bold text-cyan-400 uppercase">Kartu Fitur 2</label>
+                          <input
+                            type="text"
+                            value={draftSiteSettings.aboutCard2Title}
+                            onChange={(e) =>
+                              setDraftSiteSettings({ ...draftSiteSettings, aboutCard2Title: e.target.value })
+                            }
+                            className="w-full px-3 py-1.5 rounded-lg bg-[#0D132B] border border-slate-700 text-white text-xs font-bold"
+                          />
+                          <textarea
+                            rows={2}
+                            value={draftSiteSettings.aboutCard2Desc}
+                            onChange={(e) =>
+                              setDraftSiteSettings({ ...draftSiteSettings, aboutCard2Desc: e.target.value })
+                            }
+                            className="w-full px-3 py-1.5 rounded-lg bg-[#0D132B] border border-slate-700 text-slate-300 text-xs"
+                          />
+                        </div>
+
+                        <div className="p-3 rounded-2xl bg-[#070B19] border border-slate-800 space-y-2">
+                          <label className="text-[10px] font-bold text-purple-400 uppercase">Kartu Fitur 3</label>
+                          <input
+                            type="text"
+                            value={draftSiteSettings.aboutCard3Title}
+                            onChange={(e) =>
+                              setDraftSiteSettings({ ...draftSiteSettings, aboutCard3Title: e.target.value })
+                            }
+                            className="w-full px-3 py-1.5 rounded-lg bg-[#0D132B] border border-slate-700 text-white text-xs font-bold"
+                          />
+                          <textarea
+                            rows={2}
+                            value={draftSiteSettings.aboutCard3Desc}
+                            onChange={(e) =>
+                              setDraftSiteSettings({ ...draftSiteSettings, aboutCard3Desc: e.target.value })
+                            }
+                            className="w-full px-3 py-1.5 rounded-lg bg-[#0D132B] border border-slate-700 text-slate-300 text-xs"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -7903,26 +7982,26 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
           <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12">
             <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/30 p-8 space-y-4">
               <h1 className="text-3xl font-black text-white">{siteSettings.aboutTitle}</h1>
-              <p className="text-slate-300 leading-relaxed">
+              <p className="text-slate-300 leading-relaxed whitespace-pre-line">
                 {siteSettings.aboutDescription}
               </p>
               <div className="grid sm:grid-cols-3 gap-4 pt-4">
                 <div className="p-4 rounded-2xl bg-[#070B19] border border-slate-800">
-                  <div className="font-bold text-emerald-400 mb-1">Supabase Realtime</div>
+                  <div className="font-bold text-emerald-400 mb-1">{siteSettings.aboutCard1Title}</div>
                   <p className="text-xs text-slate-400">
-                    Presence status online siswa, broadcast pergantian soal, dan klasemen langsung.
+                    {siteSettings.aboutCard1Desc}
                   </p>
                 </div>
                 <div className="p-4 rounded-2xl bg-[#070B19] border border-slate-800">
-                  <div className="font-bold text-cyan-400 mb-1">Edge Functions Anti-Cheat</div>
+                  <div className="font-bold text-cyan-400 mb-1">{siteSettings.aboutCard2Title}</div>
                   <p className="text-xs text-slate-400">
-                    Kunci jawaban dikunci dengan RLS dan skor divalidasi langsung di server.
+                    {siteSettings.aboutCard2Desc}
                   </p>
                 </div>
                 <div className="p-4 rounded-2xl bg-[#070B19] border border-slate-800">
-                  <div className="font-bold text-purple-400 mb-1">Game Creator Studio</div>
+                  <div className="font-bold text-purple-400 mb-1">{siteSettings.aboutCard3Title}</div>
                   <p className="text-xs text-slate-400">
-                    8 template interaktif siap pakai dengan penyimpanan aset di Supabase Storage.
+                    {siteSettings.aboutCard3Desc}
                   </p>
                 </div>
               </div>
