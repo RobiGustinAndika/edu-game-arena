@@ -403,8 +403,13 @@ const getEnvVar = (key: string): string => {
   return '';
 };
 
-const INITIAL_SUPABASE_URL = getEnvVar('VITE_SUPABASE_URL');
-const INITIAL_SUPABASE_ANON_KEY = getEnvVar('VITE_SUPABASE_ANON_KEY');
+// Tempel Project URL dan Anon/Publishable Key Supabase Anda di 2 baris ini agar aktif otomatis di semua HP & laptop:
+const DEFAULT_PUBLIC_SUPABASE_URL = 'https://mnxheqqkrimptceplino.supabase.co';
+const DEFAULT_PUBLIC_SUPABASE_ANON_KEY = 'sb_publishable_YpYLwcaVeJh6yJDKESHXbQ_yiSH6GHK';
+
+
+const INITIAL_SUPABASE_URL = DEFAULT_PUBLIC_SUPABASE_URL || getEnvVar('VITE_SUPABASE_URL');
+const INITIAL_SUPABASE_ANON_KEY = DEFAULT_PUBLIC_SUPABASE_ANON_KEY || getEnvVar('VITE_SUPABASE_ANON_KEY');
 
 let supabase: SupabaseClient | null = null;
 if (INITIAL_SUPABASE_URL && INITIAL_SUPABASE_ANON_KEY) {
@@ -1996,7 +2001,10 @@ function EduGameArenaMain() {
       localStorage.setItem('VITE_SUPABASE_ANON_KEY', supabaseAnonKeyInput.trim());
       const client = createClient(supabaseUrlInput.trim(), supabaseAnonKeyInput.trim());
       setSbClient(client);
-      showToast('Berhasil terhubung ke Supabase Project!', 'success');
+      showToast(
+        'Terhubung di perangkat ini! Untuk mengaktifkan otomatis di SEMUA HP/perangkat lain, pasang ENV di Vercel atau salin snippet kode permanen.',
+        'success'
+      );
     } catch (err: any) {
       showToast(err.message || 'Gagal menghubungkan ke Supabase.', 'error');
     }
@@ -7949,12 +7957,24 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                     className="w-full px-4 py-3 rounded-xl bg-[#070B19] border border-slate-700 text-white font-mono text-xs"
                   />
                 </div>
-                <button
-                  type="submit"
-                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 font-black text-xs cursor-pointer"
-                >
-                  Simpan & Hubungkan ke Supabase
-                </button>
+                <div className="flex flex-wrap gap-2.5">
+                  <button
+                    type="submit"
+                    className="px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 font-black text-xs cursor-pointer"
+                  >
+                    Simpan & Hubungkan ke Supabase
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const snippet = `const DEFAULT_PUBLIC_SUPABASE_URL = '${supabaseUrlInput.trim()}';\nconst DEFAULT_PUBLIC_SUPABASE_ANON_KEY = '${supabaseAnonKeyInput.trim()}';`;
+                      copyText(snippet, '2 Baris Kode Permanen');
+                    }}
+                    className="px-5 py-3 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 border border-purple-400/40 text-purple-200 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Copy className="w-4 h-4" /> Salin 2 Baris Kode Permanen (Semua Perangkat)
+                  </button>
+                </div>
               </form>
             </div>
           )}
