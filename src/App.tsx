@@ -1367,6 +1367,10 @@ const DEFAULT_SITE_SETTINGS: SitePortalSettings = {
 };
 
 const SITE_SETTINGS_STORAGE_KEY = 'edu_game_arena_site_settings_v1';
+const ACCOUNTS_STORAGE_KEY = 'edu_game_arena_accounts_v1';
+const CLASSES_STORAGE_KEY = 'edu_game_arena_classes_v1';
+const GAMES_STORAGE_KEY = 'edu_game_arena_games_v1';
+const RESULTS_STORAGE_KEY = 'edu_game_arena_results_v1';
 
 const INITIAL_CLASSES: SchoolClassItem[] = [
   { id: 'cls-1', name: 'X PPLG 1', gradeLevel: 'X', major: 'Pengembangan Perangkat Lunak & Gim', academicYear: '2026/2027', studentCount: 34, isActive: true },
@@ -1485,15 +1489,59 @@ function EduGameArenaMain() {
   };
 
   // Catalog, Admin Management & School Data State
-  const [games, setGames] = useState<GameCatalogItem[]>(INITIAL_GAMES);
+  const [games, setGames] = useState<GameCatalogItem[]>(() => {
+    try {
+      const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(GAMES_STORAGE_KEY) : null;
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      // ignore
+    }
+    return INITIAL_GAMES;
+  });
   const [lessonCategories, setLessonCategories] = useState<string[]>(LESSON_CATEGORIES);
   const [newCategoryInput, setNewCategoryInput] = useState('');
   const [allRooms, setAllRooms] = useState<GameRoom[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>(DEFAULT_LEADERBOARD);
   const [leaderboardFilter, setLeaderboardFilter] = useState<'harian' | 'mingguan' | 'keseluruhan'>('keseluruhan');
-  const [managedAccounts, setManagedAccounts] = useState<ManagedAccount[]>(INITIAL_MANAGED_ACCOUNTS);
-  const [schoolClasses, setSchoolClasses] = useState<SchoolClassItem[]>(INITIAL_CLASSES);
-  const [quizResults, setQuizResults] = useState<QuizResultRecord[]>(INITIAL_QUIZ_RESULTS);
+  const [managedAccounts, setManagedAccounts] = useState<ManagedAccount[]>(() => {
+    try {
+      const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(ACCOUNTS_STORAGE_KEY) : null;
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      // ignore
+    }
+    return INITIAL_MANAGED_ACCOUNTS;
+  });
+  const [schoolClasses, setSchoolClasses] = useState<SchoolClassItem[]>(() => {
+    try {
+      const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(CLASSES_STORAGE_KEY) : null;
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      // ignore
+    }
+    return INITIAL_CLASSES;
+  });
+  const [quizResults, setQuizResults] = useState<QuizResultRecord[]>(() => {
+    try {
+      const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(RESULTS_STORAGE_KEY) : null;
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      // ignore
+    }
+    return INITIAL_QUIZ_RESULTS;
+  });
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([
     { id: 'aud-1', actorUsername: 'system', actorRole: 'system', action: 'SCHEMA_INIT', target: 'profiles, classes, game_results', timestamp: '2026-11-20 08:00' }
   ]);
@@ -1508,6 +1556,39 @@ function EduGameArenaMain() {
   });
   const [draftSiteSettings, setDraftSiteSettings] = useState<SitePortalSettings>(siteSettings);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+
+  // Simpan otomatis perubahan akun, kelas, game & skor ke localStorage agar tidak pernah hilang saat browser di-refresh
+  useEffect(() => {
+    try {
+      localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify(managedAccounts));
+    } catch {
+      // ignore
+    }
+  }, [managedAccounts]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(CLASSES_STORAGE_KEY, JSON.stringify(schoolClasses));
+    } catch {
+      // ignore
+    }
+  }, [schoolClasses]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(GAMES_STORAGE_KEY, JSON.stringify(games));
+    } catch {
+      // ignore
+    }
+  }, [games]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(RESULTS_STORAGE_KEY, JSON.stringify(quizResults));
+    } catch {
+      // ignore
+    }
+  }, [quizResults]);
 
   const [adminMenuTab, setAdminMenuTab] = useState<
     'overview' | 'appearance' | 'teachers' | 'students' | 'classes' | 'games' | 'results' | 'import' | 'export' | 'settings'
@@ -5236,7 +5317,9 @@ ${emptyTrs}
 
             // Simpan langsung ke tabel public.profiles agar otomatis muncul di seluruh HP & perangkat lain
             const profileRows = validItems.map((v, i) => ({
-              id: crypto.randomUUID ? crypto.randomUUID() : `00000000-0000-4000-8000-${String(Date.now() + i).slice(-12)}`,
+              id: crypto.randomUUID
+                ? crypto.randomUUID()
+                : `00000000-0000-4000-8000-${String(Date.now() + i).slice(-12)}`,
               username: v.username,
               role_code: importTargetRole,
               full_name: v.fullName,
@@ -5248,11 +5331,17 @@ ${emptyTrs}
               class_name: importTargetRole === 'student' ? v.thirdColVal : null,
               is_active: true
             }));
-            await sbClient.from('profiles').upsert(profileRows);
+            const { error: upsertErr } = await sbClient.from('profiles').upsert(profileRows);
+            if (upsertErr) {
+              showToast(
+                `Data tersimpan di browser ini, namun gagal sinkron ke Supabase: ${upsertErr.message}. Jalankan SQL migration terbaru.`,
+                'error'
+              );
+            }
           }
 
-          const newlyAdded: ManagedAccount[] = validItems.map((v, i) => ({
-            id: `imp_${Date.now()}_${i}`,
+          const newAccounts: ManagedAccount[] = validItems.map((v, i) => ({
+            id: `acc_${Date.now()}_${i}`,
             username: v.username,
             fullName: v.fullName,
             email: v.email,
@@ -5266,25 +5355,16 @@ ${emptyTrs}
             createdAt: new Date().toISOString().slice(0, 10)
           }));
 
-          setManagedAccounts((prev) => [...newlyAdded, ...prev]);
-          if (importTargetRole === 'student') {
-            setDbStudentDirectory((prev) => [
-              ...newlyAdded.map((s) => ({
-                id: s.id,
-                fullName: s.fullName,
-                className: s.className
-              })),
-              ...prev
-            ]);
-          }
+          setManagedAccounts((prev) => [...newAccounts, ...prev]);
           await recordAuditLog('BULK_IMPORT_USERS', 'profiles', {
             role: importTargetRole,
-            count: validItems.length
+            imported_count: newAccounts.length
           });
           showToast(
-            `${validItems.length} akun ${importTargetRole === 'teacher' ? 'Guru' : 'Siswa'} berhasil disimpan ke Supabase & aktif di semua perangkat!`,
+            `${newAccounts.length} akun ${importTargetRole === 'teacher' ? 'Guru' : 'Siswa'} berhasil diimpor & disimpan!`,
             'success'
           );
+          setImportRawHeaders([]);
           setImportRawRows([]);
           setImportFileName('');
         } finally {
@@ -5292,1569 +5372,939 @@ ${emptyTrs}
         }
       };
 
-      const exportAccountsReport = (roleFilter: 'teacher' | 'student', format: 'xlsx' | 'csv' | 'docx') => {
-        const list = managedAccounts.filter((a) => a.role === roleFilter);
-        const headers =
-          roleFilter === 'teacher'
-            ? ['Nama Lengkap', 'Username', 'NIP', 'Email', 'Status']
-            : ['Nama Lengkap', 'Username', 'NIS', 'Email', 'Kelas', 'Status'];
-        const rows = list.map((a) =>
-          roleFilter === 'teacher'
-            ? [a.fullName, a.username, a.nipNis, a.email, a.isActive ? 'Aktif' : 'Nonaktif']
-            : [a.fullName, a.username, a.nipNis, a.email, a.className || '-', a.isActive ? 'Aktif' : 'Nonaktif']
+      const filteredAccounts = managedAccounts.filter((acc) => {
+        if (adminMenuTab === 'teachers' && acc.role !== 'teacher') return false;
+        if (adminMenuTab === 'students' && acc.role !== 'student') return false;
+        const q = accountSearch.trim().toLowerCase();
+        if (!q) return true;
+        return (
+          acc.fullName.toLowerCase().includes(q) ||
+          acc.username.toLowerCase().includes(q) ||
+          acc.email.toLowerCase().includes(q) ||
+          acc.nipNis.toLowerCase().includes(q) ||
+          acc.className.toLowerCase().includes(q)
         );
+      });
 
-        if (format === 'csv') {
-          const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${c}"`).join(','))].join('\n');
-          triggerDownloadBlob(csv, `data_${roleFilter}_darulfikri.csv`, 'text/csv;charset=utf-8;');
-        } else if (format === 'xlsx') {
-          const xlsxBytes = buildRealXlsxUint8Array(`Data_${roleFilter}`, [headers, ...rows]);
-          triggerDownloadBlob(
-            xlsxBytes,
-            `data_${roleFilter}_darulfikri.xlsx`,
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-          );
-        } else {
-          const docHtml = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word'>
-<head><meta charset='utf-8'></head><body>
-<h2>Laporan Data ${roleFilter === 'teacher' ? 'Guru' : 'Siswa'} - EDU GAME ARENA</h2>
-<table border="1" cellpadding="6" cellspacing="0">
-<tr>${headers.map((h) => `<th>${h}</th>`).join('')}</tr>
-${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')}
-</table></body></html>`;
-          triggerDownloadBlob(docHtml, `data_${roleFilter}_darulfikri.docx`, 'application/msword');
-        }
-        recordAuditLog('EXPORT_ACCOUNTS', 'profiles', { roleFilter, format });
-        showToast(`Export data ${roleFilter} (${format.toUpperCase()}) berhasil diunduh!`, 'success');
-      };
+      const pageSize = 8;
+      const totalAccountPages = Math.max(1, Math.ceil(filteredAccounts.length / pageSize));
+      const paginatedAccounts = filteredAccounts.slice(
+        (accountPage - 1) * pageSize,
+        accountPage * pageSize
+      );
 
       const filteredResults = quizResults.filter((r) => {
-        const matchText =
-          r.studentName.toLowerCase().includes(resSearch.toLowerCase()) ||
-          r.gameTitle.toLowerCase().includes(resSearch.toLowerCase());
+        const q = resSearch.trim().toLowerCase();
+        const matchSearch =
+          !q ||
+          r.studentName.toLowerCase().includes(q) ||
+          r.gameTitle.toLowerCase().includes(q) ||
+          r.className.toLowerCase().includes(q);
         const matchClass = resClassFilter === 'Semua' || r.className === resClassFilter;
         const matchTeacher = resTeacherFilter === 'Semua' || r.teacherName === resTeacherFilter;
         const matchGame = resGameFilter === 'Semua' || r.gameTitle === resGameFilter;
         const matchDate = !resDateFilter || r.playedDate === resDateFilter;
-        return matchText && matchClass && matchTeacher && matchGame && matchDate;
+        return matchSearch && matchClass && matchTeacher && matchGame && matchDate;
       });
 
-      const exportQuizResults = (format: 'xlsx' | 'csv' | 'docx' | 'pdf') => {
-        const headers = ['Peringkat', 'Nama Siswa', 'Kelas', 'Guru', 'Nama Game', 'Tanggal', 'Skor', 'Benar', 'Salah', 'Durasi (d)', 'Rincian Jawaban'];
-        const rows = filteredResults.map((r) => [
-          `#${r.rank}`,
-          r.studentName,
-          r.className,
-          r.teacherName,
-          r.gameTitle,
-          r.playedDate,
-          String(r.score),
-          String(r.correctCount),
-          String(r.wrongCount),
-          `${r.durationSec}s`,
-          r.answersDetail
-        ]);
-
-        if (format === 'pdf') {
-          const printWin = window.open('', '_blank', 'width=960,height=700');
-          if (printWin) {
-            printWin.document.write(`<html><head><title>Laporan Hasil Kuis - EDU GAME ARENA</title>
-<style>body{font-family:Arial,sans-serif;padding:24px;}table{width:100%;border-collapse:collapse;font-size:12px;}th,td{border:1px solid #333;padding:6px;text-align:left;}th{background:#f0f4f8;}</style>
-</head><body><h2>Rekapitulasi Hasil Kuis - EDU GAME ARENA</h2>
-<p>Total Peserta: ${filteredResults.length} | Rata-rata Nilai: ${avgScore}</p>
-<table><tr>${headers.map((h) => `<th>${h}</th>`).join('')}</tr>
-${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')}
-</table><script>window.onload=function(){window.print();}</script></body></html>`);
-            printWin.document.close();
-          }
-        } else if (format === 'csv') {
-          const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${c}"`).join(','))].join('\n');
-          triggerDownloadBlob(csv, 'laporan_hasil_kuis.csv', 'text/csv;charset=utf-8;');
-        } else if (format === 'xlsx') {
-          const xlsxBytes = buildRealXlsxUint8Array('Hasil_Kuis', [headers, ...rows]);
-          triggerDownloadBlob(
-            xlsxBytes,
-            'laporan_hasil_kuis.xlsx',
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-          );
-        } else {
-          const docHtml = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word'>
-<head><meta charset='utf-8'></head><body>
-<h2>Laporan Rekapitulasi Hasil Kuis - EDU GAME ARENA</h2>
-<table border="1" cellpadding="6" cellspacing="0">
-<tr>${headers.map((h) => `<th>${h}</th>`).join('')}</tr>
-${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')}
-</table></body></html>`;
-          triggerDownloadBlob(docHtml, 'laporan_hasil_kuis.docx', 'application/msword');
-        }
-        recordAuditLog('EXPORT_QUIZ_RESULTS', 'game_results', { format, rows: filteredResults.length });
-        showToast(`Laporan hasil kuis (${format.toUpperCase()}) siap!`, 'success');
-      };
-
-      const renderAccountsTable = (roleType: 'teacher' | 'student') => {
-        const filtered = managedAccounts.filter(
-          (a) =>
-            a.role === roleType &&
-            (a.fullName.toLowerCase().includes(accountSearch.toLowerCase()) ||
-              a.username.toLowerCase().includes(accountSearch.toLowerCase()) ||
-              a.email.toLowerCase().includes(accountSearch.toLowerCase()) ||
-              a.nipNis.includes(accountSearch))
-        );
-        const pageSize = 5;
-        const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-        const paginated = filtered.slice((accountPage - 1) * pageSize, accountPage * pageSize);
-
-        return (
-          <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/25 p-6 space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-xl font-black text-white">
-                  {roleType === 'teacher' ? 'Manajemen Data Guru' : 'Manajemen Data Siswa'} ({filtered.length})
-                </h2>
-                <p className="text-xs text-slate-400">
-                  Pembuatan akun memanggil Edge Function aman tanpa password default.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {filtered.length > 0 && (
-                  <button
-                    onClick={() => setConfirmBulkDeleteRole(roleType)}
-                    className="px-3.5 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/35 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    Hapus Semua {roleType === 'teacher' ? 'Guru' : 'Siswa'}
-                  </button>
-                )}
-                <button
-                  onClick={() => exportAccountsReport(roleType, 'xlsx')}
-                  className="px-3 py-2 rounded-xl bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-xs font-bold flex items-center gap-1 cursor-pointer"
-                >
-                  <Download className="w-3.5 h-3.5" /> Export XLSX
-                </button>
-                <button
-                  onClick={() => {
-                    setFormAccFullName('');
-                    setFormAccUsername('');
-                    setFormAccEmail('');
-                    setFormAccNipNis('');
-                    setNewAccModalOpen(roleType);
-                  }}
-                  className="px-4 py-2 rounded-xl bg-cyan-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer"
-                >
-                  <UserPlus className="w-4 h-4" /> Tambah {roleType === 'teacher' ? 'Guru' : 'Siswa'}
-                </button>
-              </div>
-            </div>
-
-            <div className="relative max-w-md">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-              <input
-                type="text"
-                placeholder={`Cari nama, username, email, atau ${roleType === 'teacher' ? 'NIP' : 'NIS'}...`}
-                value={accountSearch}
-                onChange={(e) => {
-                  setAccountSearch(e.target.value);
-                  setAccountPage(1);
-                }}
-                className="w-full pl-10 pr-4 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs"
-              />
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="bg-[#070B19] border-b border-slate-800 text-slate-400 uppercase">
-                    <th className="py-3 px-4">Nama & Username</th>
-                    <th className="py-3 px-4">{roleType === 'teacher' ? 'NIP' : 'NIS'}</th>
-                    <th className="py-3 px-4">Email</th>
-                    {roleType === 'student' && <th className="py-3 px-4">Kelas</th>}
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4 text-right">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60">
-                  {paginated.map((acc) => (
-                    <tr key={acc.id} className="hover:bg-white/[0.02]">
-                      <td className="py-3 px-4">
-                        <div className="font-bold text-white">{acc.fullName}</div>
-                        <div className="text-[11px] text-cyan-400 font-mono">@{acc.username}</div>
-                      </td>
-                      <td className="py-3 px-4 font-mono text-slate-300">{acc.nipNis}</td>
-                      <td className="py-3 px-4 text-slate-300">{acc.email}</td>
-                      {roleType === 'student' && (
-                        <td className="py-3 px-4 text-slate-300">{acc.className || 'Semua Kelas'}</td>
-                      )}
-                      <td className="py-3 px-4">
-                        <button
-                          onClick={async () => {
-                            const nextActive = !acc.isActive;
-                            setManagedAccounts((prev) =>
-                              prev.map((item) => (item.id === acc.id ? { ...item, isActive: nextActive } : item))
-                            );
-                            if (sbClient) {
-                              await sbClient.from('profiles').update({ is_active: nextActive }).eq('id', acc.id);
-                            }
-                            await recordAuditLog('TOGGLE_ACCOUNT_STATUS', 'profiles', {
-                              username: acc.username,
-                              is_active: nextActive
-                            });
-                            showToast(`Status ${acc.fullName} diubah menjadi ${nextActive ? 'Aktif' : 'Nonaktif'}.`, 'info');
-                          }}
-                          className={`px-2.5 py-1 rounded-full text-[11px] font-bold cursor-pointer ${
-                            acc.isActive
-                              ? 'bg-emerald-500/20 text-emerald-300'
-                              : 'bg-rose-500/20 text-rose-300'
-                          }`}
-                        >
-                          {acc.isActive ? 'Aktif' : 'Nonaktif'}
-                        </button>
-                      </td>
-                      <td className="py-3 px-4 text-right space-x-1.5">
-                        <button
-                          onClick={() => handleSendPasswordReset(acc.email)}
-                          title="Kirim Reset Password"
-                          className="px-2.5 py-1.5 rounded-lg bg-amber-500/15 text-amber-300 font-bold cursor-pointer"
-                        >
-                          Reset PW
-                        </button>
-                        <button
-                          onClick={async () => {
-                            setManagedAccounts((prev) => prev.filter((item) => item.id !== acc.id));
-                            await recordAuditLog('DELETE_ACCOUNT', 'profiles', { username: acc.username });
-                            showToast(`Akun ${acc.fullName} dihapus.`, 'info');
-                          }}
-                          className="px-2.5 py-1.5 rounded-lg bg-rose-500/15 text-rose-300 font-bold cursor-pointer"
-                        >
-                          Hapus
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="flex items-center justify-between pt-2 text-xs text-slate-400">
-              <span>
-                Halaman {accountPage} dari {totalPages}
-              </span>
-              <div className="flex gap-1.5">
-                <button
-                  disabled={accountPage <= 1}
-                  onClick={() => setAccountPage((p) => p - 1)}
-                  className="px-3 py-1.5 rounded-lg bg-[#070B19] border border-slate-700 disabled:opacity-40"
-                >
-                  Sebelumnya
-                </button>
-                <button
-                  disabled={accountPage >= totalPages}
-                  onClick={() => setAccountPage((p) => p + 1)}
-                  className="px-3 py-1.5 rounded-lg bg-[#070B19] border border-slate-700 disabled:opacity-40"
-                >
-                  Berikutnya
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      };
-
-      const adminSidebarItems = [
-        { id: 'overview', label: 'Dashboard', icon: BarChart3 },
-        { id: 'appearance', label: 'Tampilan & Logo', icon: ImageIcon },
-        { id: 'teachers', label: 'Data Guru', icon: UserCheck },
-        { id: 'students', label: 'Data Siswa', icon: Users },
-        { id: 'classes', label: 'Data Kelas', icon: Building2 },
-        { id: 'games', label: 'Manajemen Game', icon: Gamepad2 },
-        { id: 'results', label: 'Hasil Kuis', icon: ClipboardList },
-        { id: 'import', label: 'Import Data', icon: Upload },
-        { id: 'export', label: 'Export Laporan', icon: Download },
-        { id: 'settings', label: 'Pengaturan', icon: Sliders }
-      ];
+      const resPageSize = 8;
+      const totalResPages = Math.max(1, Math.ceil(filteredResults.length / resPageSize));
+      const paginatedResults = filteredResults.slice(
+        (resPage - 1) * resPageSize,
+        resPage * resPageSize
+      );
 
       return (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="grid lg:grid-cols-12 gap-6 items-start">
-            {/* Sidebar Navigasi Admin */}
-            <aside className="lg:col-span-3 rounded-3xl bg-[#0D132B] border border-indigo-500/30 p-4 space-y-2 lg:sticky lg:top-20">
-              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-[#1A103C] to-[#0F1736] border border-purple-500/30 mb-3">
-                <div className="flex items-center gap-2.5">
-                  <span className="text-2xl">{currentUser.avatar}</span>
-                  <div>
-                    <div className="text-xs font-black text-white">{currentUser.name}</div>
-                    <div className="text-[11px] font-mono text-emerald-400">
-                      @{currentUser.username} • {currentUser.role}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex lg:flex-col gap-1 overflow-x-auto pb-1 lg:pb-0">
-                {adminSidebarItems.map((item) => {
-                  const IconComp = item.icon;
-                  const active = adminMenuTab === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => {
-                        if (item.id === 'appearance') setDraftSiteSettings(siteSettings);
-                        setAdminMenuTab(item.id as any);
-                      }}
-                      className={`px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2.5 whitespace-nowrap transition-all cursor-pointer ${
-                        active
-                          ? 'bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 font-black shadow-md'
-                          : 'text-slate-300 hover:bg-white/5 hover:text-white'
-                      }`}
-                    >
-                      <IconComp className="w-4 h-4 shrink-0" />
-                      {item.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </aside>
-
-            {/* Konten Utama Admin */}
-            <div className="lg:col-span-9 space-y-6">
-              {adminMenuTab === 'appearance' && (
-                <form
-                  onSubmit={async (e) => {
-                    e.preventDefault();
-                    setSiteSettings(draftSiteSettings);
-                    try {
-                      localStorage.setItem(SITE_SETTINGS_STORAGE_KEY, JSON.stringify(draftSiteSettings));
-                    } catch {
-                      // ignore
-                    }
-                    if (sbClient) {
-                      const { error: saveErr } = await sbClient.from('site_settings').upsert({
-                        id: 'main',
-                        config: draftSiteSettings,
-                        updated_at: new Date().toISOString()
-                      });
-                      if (saveErr) {
-                        showToast(
-                          `Gagal simpan ke Supabase (${saveErr.message || 'cek SQL site_settings & RLS'}).`,
-                          'error'
-                        );
-                        return;
-                      }
-                    } else {
-                      showToast(
-                        'Tersimpan di browser ini saja (Supabase belum terhubung sehingga perangkat lain belum berubah).',
-                        'error'
-                      );
-                      return;
-                    }
-                    await recordAuditLog('UPDATE_PORTAL_APPEARANCE', 'site_settings', {
-                      brandTitle: draftSiteSettings.brandTitle,
-                      homeGamesLimit: draftSiteSettings.homeGamesLimit
-                    });
-                    showToast('Berhasil disimpan ke Supabase! Semua perangkat kini menampilkan teks terbaru.', 'success');
-                  }}
-                  className="space-y-6"
-                >
-                  <div className="rounded-3xl bg-[#0D132B] border border-cyan-500/30 p-6 flex flex-wrap items-center justify-between gap-4">
-                    <div>
-                      <span className="px-2.5 py-1 rounded-full bg-cyan-500/15 text-cyan-300 text-[10px] font-black uppercase">
-                        CMS PORTAL & BRANDING SEKOLAH
-                      </span>
-                      <h2 className="text-xl font-black text-white mt-1.5">
-                        Kustomisasi Logo, Teks Beranda & Dashboard
-                      </h2>
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        Ubah logo institusi, judul utama halaman depan, teks sambutan dashboard, dan jumlah game di beranda.
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDraftSiteSettings(DEFAULT_SITE_SETTINGS);
-                          showToast('Form dikembalikan ke teks bawaan. Klik Simpan Perubahan untuk menerapkan.', 'info');
-                        }}
-                        className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-200 text-xs font-bold cursor-pointer"
-                      >
-                        Reset Default
-                      </button>
-                      <button
-                        type="submit"
-                        className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-lg cursor-pointer"
-                      >
-                        <Save className="w-4 h-4" /> Simpan & Terapkan
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Bagian 1: Logo & Identitas Portal */}
-                  <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/25 p-6 space-y-5">
-                    <h3 className="text-base font-black text-white flex items-center gap-2">
-                      <ImageIcon className="w-5 h-5 text-emerald-400" />
-                      1. Logo & Identitas Portal (Navbar)
-                    </h3>
-
-                    <div className="grid md:grid-cols-12 gap-6 items-center">
-                      <div className="md:col-span-4 flex flex-col items-center justify-center p-5 rounded-2xl bg-[#070B19] border border-slate-800 space-y-3">
-                        <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-400 via-cyan-500 to-purple-600 p-0.5 overflow-hidden shadow-lg">
-                          <div className="w-full h-full bg-[#0A0F24] rounded-[14px] flex items-center justify-center overflow-hidden">
-                            {draftSiteSettings.logoUrl ? (
-                              <img
-                                src={draftSiteSettings.logoUrl}
-                                alt="Preview Logo"
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <Gamepad2 className="w-9 h-9 text-emerald-400" />
-                            )}
-                          </div>
-                        </div>
-                        <span className="text-[11px] text-slate-400 font-semibold">Pratinjau Logo Navbar</span>
-                        {draftSiteSettings.logoUrl && (
-                          <button
-                            type="button"
-                            onClick={() => setDraftSiteSettings({ ...draftSiteSettings, logoUrl: '' })}
-                            className="text-[11px] text-rose-400 hover:underline font-bold cursor-pointer"
-                          >
-                            Hapus Logo (Gunakan Ikon Bawaan)
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="md:col-span-8 space-y-3">
-                        <div className="grid sm:grid-cols-2 gap-3">
-                          <div>
-                            <label className="text-[11px] font-bold text-slate-400 block mb-1">
-                              Nama Utama Portal / Sekolah
-                            </label>
-                            <input
-                              type="text"
-                              required
-                              value={draftSiteSettings.brandTitle}
-                              onChange={(e) =>
-                                setDraftSiteSettings({ ...draftSiteSettings, brandTitle: e.target.value })
-                              }
-                              className="w-full px-3.5 py-2.5 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs font-bold"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[11px] font-bold text-slate-400 block mb-1">
-                              Subjudul / Slogan Singkat
-                            </label>
-                            <input
-                              type="text"
-                              value={draftSiteSettings.brandSubtitle}
-                              onChange={(e) =>
-                                setDraftSiteSettings({ ...draftSiteSettings, brandSubtitle: e.target.value })
-                              }
-                              className="w-full px-3.5 py-2.5 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs"
-                            />
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="text-[11px] font-bold text-slate-400 block mb-1">
-                            Upload File Logo Baru (PNG, JPG, WEBP, SVG — Maks. 3 MB)
-                          </label>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            disabled={uploadingLogo}
-                            onChange={async (e) => {
-                              const file = e.target.files?.[0];
-                              if (!file) return;
-                              try {
-                                setUploadingLogo(true);
-                                const url = await handleUploadAssetFile(file, 'game-thumbnails');
-                                setDraftSiteSettings((prev) => ({ ...prev, logoUrl: url }));
-                                showToast('Logo berhasil diunggah! Klik Simpan & Terapkan.', 'success');
-                              } catch (err: any) {
-                                showToast(err.message || 'Gagal mengunggah logo.', 'error');
-                              } finally {
-                                setUploadingLogo(false);
-                              }
-                            }}
-                            className="w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-black file:bg-cyan-400 file:text-slate-950 cursor-pointer"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="text-[11px] font-bold text-slate-400 block mb-1">
-                            Atau Tempel URL Gambar Logo Eksternal (Opsional)
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="https://..."
-                            value={draftSiteSettings.logoUrl}
-                            onChange={(e) =>
-                              setDraftSiteSettings({ ...draftSiteSettings, logoUrl: e.target.value })
-                            }
-                            className="w-full px-3.5 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-cyan-300 font-mono text-xs"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Bagian 2: Teks Halaman Depan (Hero Section) */}
-                  <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/25 p-6 space-y-4">
-                    <h3 className="text-base font-black text-white">
-                      2. Teks Hero Halaman Depan (Landing Page)
-                    </h3>
-
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-400 block mb-1">
-                        Teks Badge Atas (Pill Header)
-                      </label>
-                      <input
-                        type="text"
-                        value={draftSiteSettings.heroBadge}
-                        onChange={(e) =>
-                          setDraftSiteSettings({ ...draftSiteSettings, heroBadge: e.target.value })
-                        }
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-[#070B19] border border-slate-700 text-emerald-300 text-xs font-bold"
-                      />
-                    </div>
-
-                    <div className="grid sm:grid-cols-3 gap-3">
-                      <div>
-                        <label className="text-[11px] font-bold text-slate-400 block mb-1">
-                          Judul Baris 1 (Putih)
-                        </label>
-                        <input
-                          type="text"
-                          value={draftSiteSettings.heroTitlePrefix}
-                          onChange={(e) =>
-                            setDraftSiteSettings({ ...draftSiteSettings, heroTitlePrefix: e.target.value })
-                          }
-                          className="w-full px-3.5 py-2.5 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs font-bold"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[11px] font-bold text-slate-400 block mb-1">
-                          Judul Sorotan (Gradasi Warna)
-                        </label>
-                        <input
-                          type="text"
-                          value={draftSiteSettings.heroTitleHighlight}
-                          onChange={(e) =>
-                            setDraftSiteSettings({ ...draftSiteSettings, heroTitleHighlight: e.target.value })
-                          }
-                          className="w-full px-3.5 py-2.5 rounded-xl bg-[#070B19] border border-slate-700 text-cyan-300 text-xs font-bold"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[11px] font-bold text-slate-400 block mb-1">
-                          Judul Baris 3 (Putih)
-                        </label>
-                        <input
-                          type="text"
-                          value={draftSiteSettings.heroTitleSuffix}
-                          onChange={(e) =>
-                            setDraftSiteSettings({ ...draftSiteSettings, heroTitleSuffix: e.target.value })
-                          }
-                          className="w-full px-3.5 py-2.5 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs font-bold"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-400 block mb-1">
-                        Deskripsi Utama Halaman Depan
-                      </label>
-                      <textarea
-                        rows={3}
-                        value={draftSiteSettings.heroSubtitle}
-                        onChange={(e) =>
-                          setDraftSiteSettings({ ...draftSiteSettings, heroSubtitle: e.target.value })
-                        }
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-[#070B19] border border-slate-700 text-slate-200 text-xs leading-relaxed"
-                      />
-                    </div>
-
-                    <div className="grid sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-[11px] font-bold text-slate-400 block mb-1">
-                          Teks Tombol Utama (Siswa)
-                        </label>
-                        <input
-                          type="text"
-                          value={draftSiteSettings.heroPrimaryBtnText}
-                          onChange={(e) =>
-                            setDraftSiteSettings({ ...draftSiteSettings, heroPrimaryBtnText: e.target.value })
-                          }
-                          className="w-full px-3.5 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[11px] font-bold text-slate-400 block mb-1">
-                          Teks Tombol Kedua (Guru)
-                        </label>
-                        <input
-                          type="text"
-                          value={draftSiteSettings.heroSecondaryBtnText}
-                          onChange={(e) =>
-                            setDraftSiteSettings({ ...draftSiteSettings, heroSecondaryBtnText: e.target.value })
-                          }
-                          className="w-full px-3.5 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid sm:grid-cols-3 gap-3 pt-2 border-t border-slate-800">
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-emerald-400 uppercase">Statistik 1</label>
-                        <input
-                          type="text"
-                          value={draftSiteSettings.stat1Value}
-                          onChange={(e) => setDraftSiteSettings({ ...draftSiteSettings, stat1Value: e.target.value })}
-                          className="w-full px-3 py-1.5 rounded-lg bg-[#070B19] border border-slate-700 text-white text-xs font-bold"
-                        />
-                        <input
-                          type="text"
-                          value={draftSiteSettings.stat1Label}
-                          onChange={(e) => setDraftSiteSettings({ ...draftSiteSettings, stat1Label: e.target.value })}
-                          className="w-full px-3 py-1.5 rounded-lg bg-[#070B19] border border-slate-700 text-slate-300 text-xs"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-cyan-400 uppercase">Statistik 2</label>
-                        <input
-                          type="text"
-                          value={draftSiteSettings.stat2Value}
-                          onChange={(e) => setDraftSiteSettings({ ...draftSiteSettings, stat2Value: e.target.value })}
-                          className="w-full px-3 py-1.5 rounded-lg bg-[#070B19] border border-slate-700 text-white text-xs font-bold"
-                        />
-                        <input
-                          type="text"
-                          value={draftSiteSettings.stat2Label}
-                          onChange={(e) => setDraftSiteSettings({ ...draftSiteSettings, stat2Label: e.target.value })}
-                          className="w-full px-3 py-1.5 rounded-lg bg-[#070B19] border border-slate-700 text-slate-300 text-xs"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-purple-400 uppercase">Statistik 3</label>
-                        <input
-                          type="text"
-                          value={draftSiteSettings.stat3Value}
-                          onChange={(e) => setDraftSiteSettings({ ...draftSiteSettings, stat3Value: e.target.value })}
-                          className="w-full px-3 py-1.5 rounded-lg bg-[#070B19] border border-slate-700 text-white text-xs font-bold"
-                        />
-                        <input
-                          type="text"
-                          value={draftSiteSettings.stat3Label}
-                          onChange={(e) => setDraftSiteSettings({ ...draftSiteSettings, stat3Label: e.target.value })}
-                          className="w-full px-3 py-1.5 rounded-lg bg-[#070B19] border border-slate-700 text-slate-300 text-xs"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Bagian 3: Pengaturan Katalog Beranda, Dashboard Guru & Halaman Tentang */}
-                  <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/25 p-6 space-y-4">
-                    <h3 className="text-base font-black text-white">
-                      3. Tampilan Katalog Game di Beranda & Teks Dashboard
-                    </h3>
-
-                    <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                      <div>
-                        <label className="text-[11px] font-bold text-slate-400 block mb-1">
-                          Label Kecil Katalog Beranda
-                        </label>
-                        <input
-                          type="text"
-                          value={draftSiteSettings.homeCatalogTag}
-                          onChange={(e) =>
-                            setDraftSiteSettings({ ...draftSiteSettings, homeCatalogTag: e.target.value })
-                          }
-                          className="w-full px-3 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-cyan-300 text-xs"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[11px] font-bold text-slate-400 block mb-1">
-                          Judul Katalog Beranda
-                        </label>
-                        <input
-                          type="text"
-                          value={draftSiteSettings.homeCatalogTitle}
-                          onChange={(e) =>
-                            setDraftSiteSettings({ ...draftSiteSettings, homeCatalogTitle: e.target.value })
-                          }
-                          className="w-full px-3 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs font-bold"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[11px] font-bold text-slate-400 block mb-1">
-                          Jumlah Tampilan Game di Beranda
-                        </label>
-                        <select
-                          value={draftSiteSettings.homeGamesLimit}
-                          onChange={(e) =>
-                            setDraftSiteSettings({ ...draftSiteSettings, homeGamesLimit: Number(e.target.value) })
-                          }
-                          className="w-full px-3 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs font-bold"
-                        >
-                          <option value={3}>3 Game (1 Baris)</option>
-                          <option value={6}>6 Game (2 Baris)</option>
-                          <option value={9}>9 Game (3 Baris)</option>
-                          <option value={12}>12 Game (4 Baris)</option>
-                          <option value={50}>Tampilkan Semua Game</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-[11px] font-bold text-slate-400 block mb-1">
-                          Urutan Tampilan Game Beranda
-                        </label>
-                        <select
-                          value={draftSiteSettings.homeGamesSort}
-                          onChange={(e) =>
-                            setDraftSiteSettings({
-                              ...draftSiteSettings,
-                              homeGamesSort: e.target.value as 'default' | 'popular' | 'rating'
-                            })
-                          }
-                          className="w-full px-3 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs"
-                        >
-                          <option value="default">Terbaru / Kurasi Default</option>
-                          <option value="popular">Paling Sering Dimainkan</option>
-                          <option value="rating">Rating Tertinggi</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-400 block mb-1">
-                        Teks Sambutan Dashboard Guru
-                      </label>
-                      <input
-                        type="text"
-                        value={draftSiteSettings.teacherDashboardSubtitle}
-                        onChange={(e) =>
-                          setDraftSiteSettings({
-                            ...draftSiteSettings,
-                            teacherDashboardSubtitle: e.target.value
-                          })
-                        }
-                        className="w-full px-3.5 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs"
-                      />
-                    </div>
-
-                    <div className="pt-4 border-t border-slate-800 space-y-4">
-                      <h4 className="text-sm font-black text-cyan-300">
-                        4. Konten Lengkap Halaman Menu &ldquo;Tentang&rdquo;
-                      </h4>
-                      <div className="grid sm:grid-cols-3 gap-3">
-                        <div>
-                          <label className="text-[11px] font-bold text-slate-400 block mb-1">
-                            Judul Halaman Tentang
-                          </label>
-                          <input
-                            type="text"
-                            value={draftSiteSettings.aboutTitle}
-                            onChange={(e) =>
-                              setDraftSiteSettings({ ...draftSiteSettings, aboutTitle: e.target.value })
-                            }
-                            className="w-full px-3.5 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs font-bold"
-                          />
-                        </div>
-                        <div className="sm:col-span-2">
-                          <label className="text-[11px] font-bold text-slate-400 block mb-1">
-                            Deskripsi Utama Halaman Tentang
-                          </label>
-                          <textarea
-                            rows={2}
-                            value={draftSiteSettings.aboutDescription}
-                            onChange={(e) =>
-                              setDraftSiteSettings({ ...draftSiteSettings, aboutDescription: e.target.value })
-                            }
-                            className="w-full px-3.5 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-slate-200 text-xs"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid sm:grid-cols-3 gap-3">
-                        <div className="p-3 rounded-2xl bg-[#070B19] border border-slate-800 space-y-2">
-                          <label className="text-[10px] font-bold text-emerald-400 uppercase">Kartu Fitur 1</label>
-                          <input
-                            type="text"
-                            value={draftSiteSettings.aboutCard1Title}
-                            onChange={(e) =>
-                              setDraftSiteSettings({ ...draftSiteSettings, aboutCard1Title: e.target.value })
-                            }
-                            className="w-full px-3 py-1.5 rounded-lg bg-[#0D132B] border border-slate-700 text-white text-xs font-bold"
-                          />
-                          <textarea
-                            rows={2}
-                            value={draftSiteSettings.aboutCard1Desc}
-                            onChange={(e) =>
-                              setDraftSiteSettings({ ...draftSiteSettings, aboutCard1Desc: e.target.value })
-                            }
-                            className="w-full px-3 py-1.5 rounded-lg bg-[#0D132B] border border-slate-700 text-slate-300 text-xs"
-                          />
-                        </div>
-
-                        <div className="p-3 rounded-2xl bg-[#070B19] border border-slate-800 space-y-2">
-                          <label className="text-[10px] font-bold text-cyan-400 uppercase">Kartu Fitur 2</label>
-                          <input
-                            type="text"
-                            value={draftSiteSettings.aboutCard2Title}
-                            onChange={(e) =>
-                              setDraftSiteSettings({ ...draftSiteSettings, aboutCard2Title: e.target.value })
-                            }
-                            className="w-full px-3 py-1.5 rounded-lg bg-[#0D132B] border border-slate-700 text-white text-xs font-bold"
-                          />
-                          <textarea
-                            rows={2}
-                            value={draftSiteSettings.aboutCard2Desc}
-                            onChange={(e) =>
-                              setDraftSiteSettings({ ...draftSiteSettings, aboutCard2Desc: e.target.value })
-                            }
-                            className="w-full px-3 py-1.5 rounded-lg bg-[#0D132B] border border-slate-700 text-slate-300 text-xs"
-                          />
-                        </div>
-
-                        <div className="p-3 rounded-2xl bg-[#070B19] border border-slate-800 space-y-2">
-                          <label className="text-[10px] font-bold text-purple-400 uppercase">Kartu Fitur 3</label>
-                          <input
-                            type="text"
-                            value={draftSiteSettings.aboutCard3Title}
-                            onChange={(e) =>
-                              setDraftSiteSettings({ ...draftSiteSettings, aboutCard3Title: e.target.value })
-                            }
-                            className="w-full px-3 py-1.5 rounded-lg bg-[#0D132B] border border-slate-700 text-white text-xs font-bold"
-                          />
-                          <textarea
-                            rows={2}
-                            value={draftSiteSettings.aboutCard3Desc}
-                            onChange={(e) =>
-                              setDraftSiteSettings({ ...draftSiteSettings, aboutCard3Desc: e.target.value })
-                            }
-                            className="w-full px-3 py-1.5 rounded-lg bg-[#0D132B] border border-slate-700 text-slate-300 text-xs"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </form>
-              )}
-
-              {adminMenuTab === 'overview' && (
-                <>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {[
-                      { label: 'Total Guru', val: teachersList.length, icon: UserCheck, color: 'text-cyan-400' },
-                      { label: 'Total Siswa', val: studentsList.length, icon: Users, color: 'text-emerald-400' },
-                      { label: 'Data Kelas', val: schoolClasses.length, icon: Building2, color: 'text-purple-400' },
-                      { label: 'Total Game', val: games.length, icon: Gamepad2, color: 'text-blue-400' },
-                      { label: 'Room Aktif', val: activeRoomsCount, icon: Wifi, color: 'text-amber-400' },
-                      { label: 'Total Kuis Selesai', val: quizResults.length, icon: ClipboardList, color: 'text-pink-400' },
-                      { label: 'Rata-Rata Nilai', val: `${avgScore} PTS`, icon: Award, color: 'text-emerald-300' },
-                      { label: 'Audit Log Tercatat', val: auditLogs.length, icon: History, color: 'text-indigo-300' }
-                    ].map((card, i) => {
-                      const IconC = card.icon;
-                      return (
-                        <div key={i} className="p-4 rounded-2xl bg-[#0D132B] border border-indigo-500/20">
-                          <IconC className={`w-5 h-5 ${card.color} mb-2`} />
-                          <div className="text-xl font-black text-white">{card.val}</div>
-                          <div className="text-[11px] text-slate-400 font-semibold">{card.label}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/25 p-6 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-base font-black text-white flex items-center gap-2">
-                        <History className="w-4 h-4 text-cyan-400" />
-                        Audit Log Aktivitas Administrator
-                      </h3>
-                      <button
-                        onClick={() => setActivePage('supabase-guide')}
-                        className="text-xs font-bold text-emerald-400 hover:underline cursor-pointer"
-                      >
-                        Lihat SQL & Edge Functions →
-                      </button>
-                    </div>
-                    <div className="space-y-2 max-h-60 overflow-y-auto">
-                      {auditLogs.map((log) => (
-                        <div
-                          key={log.id}
-                          className="p-3 rounded-xl bg-[#070B19] border border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs"
-                        >
-                          <div>
-                            <span className="font-mono font-bold text-cyan-300">@{log.actorUsername}</span>{' '}
-                            <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 font-bold text-[10px]">
-                              {log.action}
-                            </span>{' '}
-                            <span className="text-slate-300">pada {log.target}</span>
-                          </div>
-                          <span className="text-[11px] text-slate-500">{log.timestamp}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {adminMenuTab === 'teachers' && renderAccountsTable('teacher')}
-              {adminMenuTab === 'students' && renderAccountsTable('student')}
-
-              {adminMenuTab === 'classes' && (
-                <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/25 p-6 space-y-5">
-                  <div>
-                    <h2 className="text-xl font-black text-white">Manajemen Data Kelas</h2>
-                    <p className="text-xs text-slate-400">
-                      Semua guru dapat memberikan tugas/kuis ke seluruh siswa menggunakan kode room.
-                    </p>
-                  </div>
-                  <form
-                    onSubmit={async (e) => {
-                      e.preventDefault();
-                      if (!newClassName.trim()) return;
-                      const created: SchoolClassItem = {
-                        id: `cls_${Date.now()}`,
-                        name: newClassName.trim().toUpperCase(),
-                        gradeLevel: newClassName.trim().split(' ')[0] || 'XI',
-                        major: newClassMajor,
-                        academicYear: '2026/2027',
-                        studentCount: 0,
-                        isActive: true
-                      };
-                      setSchoolClasses((prev) => [created, ...prev]);
-                      if (sbClient) {
-                        await sbClient.from('classes').insert({
-                          name: created.name,
-                          grade_level: created.gradeLevel,
-                          major: created.major,
-                          academic_year: created.academicYear
-                        });
-                      }
-                      await recordAuditLog('CREATE_CLASS', 'classes', { name: created.name });
-                      setNewClassName('');
-                      showToast(`Kelas ${created.name} berhasil ditambahkan!`, 'success');
-                    }}
-                    className="grid sm:grid-cols-3 gap-3 p-4 rounded-2xl bg-[#070B19] border border-slate-800"
-                  >
-                    <input
-                      type="text"
-                      required
-                      placeholder="Nama Kelas (mis: XII TKJ 1)"
-                      value={newClassName}
-                      onChange={(e) => setNewClassName(e.target.value)}
-                      className="px-3 py-2 rounded-xl bg-[#0D132B] border border-slate-700 text-white text-xs"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Kompetensi Keahlian"
-                      value={newClassMajor}
-                      onChange={(e) => setNewClassMajor(e.target.value)}
-                      className="px-3 py-2 rounded-xl bg-[#0D132B] border border-slate-700 text-white text-xs"
-                    />
-                    <button
-                      type="submit"
-                      className="px-4 py-2 rounded-xl bg-emerald-400 text-slate-950 font-black text-xs cursor-pointer"
-                    >
-                      + Tambah Kelas
-                    </button>
-                  </form>
-
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    {schoolClasses.map((cls) => (
-                      <div
-                        key={cls.id}
-                        className="p-4 rounded-2xl bg-[#070B19] border border-slate-800 flex items-center justify-between"
-                      >
-                        <div>
-                          <div className="font-black text-white text-base">{cls.name}</div>
-                          <div className="text-xs text-cyan-400">{cls.major}</div>
-                          <div className="text-[11px] text-slate-400 mt-1">
-                            Tahun Ajaran {cls.academicYear}
-                          </div>
-                        </div>
-                        <button
-                          onClick={async () => {
-                            setSchoolClasses((prev) => prev.filter((c) => c.id !== cls.id));
-                            await recordAuditLog('DELETE_CLASS', 'classes', { name: cls.name });
-                            showToast(`Kelas ${cls.name} dihapus.`, 'info');
-                          }}
-                          className="p-2 rounded-lg bg-rose-500/15 text-rose-300 cursor-pointer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {adminMenuTab === 'import' && (
-                <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/25 p-6 space-y-6">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h2 className="text-xl font-black text-white flex items-center gap-2">
-                        <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
-                        Import Data Guru & Siswa via Excel / CSV
-                      </h2>
-                      <p className="text-xs text-slate-400 mt-1">
-                        Format wajib 5 kolom (1 kolom per masukan):{' '}
-                        <code className="text-cyan-300 font-bold">
-                          {importTargetRole === 'teacher'
-                            ? 'Nama | User_name | NIP | Email | Password'
-                            : 'Nama | User_name | Kelas | Email | Password'}
-                        </code>
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => downloadImportTemplate(importTargetRole, 'xlsx')}
-                        className="px-3.5 py-2 rounded-xl bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <Download className="w-3.5 h-3.5" /> Template Excel (.XLSX)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => downloadImportTemplate(importTargetRole, 'csv')}
-                        className="px-3.5 py-2 rounded-xl bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <Download className="w-3.5 h-3.5" /> Template CSV
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="grid sm:grid-cols-2 gap-4 p-4 rounded-2xl bg-[#070B19] border border-slate-800">
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-400 block mb-1.5">
-                        1. Pilih Role Akun yang Diimpor
-                      </label>
-                      <div className="grid grid-cols-2 gap-2">
-                        {[
-                          { id: 'teacher', label: 'Data Guru' },
-                          { id: 'student', label: 'Data Siswa' }
-                        ].map((r) => (
-                          <button
-                            key={r.id}
-                            type="button"
-                            onClick={() => setImportTargetRole(r.id as 'teacher' | 'student')}
-                            className={`py-2.5 rounded-xl text-xs font-black border cursor-pointer ${
-                              importTargetRole === r.id
-                                ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300'
-                                : 'bg-[#0D132B] border-slate-700 text-slate-400'
-                            }`}
-                          >
-                            {r.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-400 block mb-1.5">
-                        2. Unggah File Excel (.xlsx / .xls / .csv)
-                      </label>
-                      <input
-                        type="file"
-                        accept=".xlsx,.xls,.csv,.txt"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleParseImportFile(file);
-                        }}
-                        className="w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-black file:bg-emerald-400 file:text-slate-950 cursor-pointer"
-                      />
-                    </div>
-                  </div>
-
-                  {importRawRows.length > 0 && (
-                    <div className="space-y-4">
-                      <div className="p-4 rounded-2xl bg-[#070B19] border border-cyan-500/30 space-y-3">
-                        <div className="text-xs font-black text-cyan-300">
-                          Pemetaan 5 Kolom ({importFileName}):
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
-                          {[
-                            { key: 'fullName', label: 'Kolom Nama' },
-                            { key: 'username', label: 'Kolom User_name' },
-                            {
-                              key: 'nipNis',
-                              label: importTargetRole === 'teacher' ? 'Kolom NIP' : 'Kolom Kelas'
-                            },
-                            { key: 'email', label: 'Kolom Email' },
-                            { key: 'password', label: 'Kolom Password' }
-                          ].map((m) => (
-                            <div key={m.key}>
-                              <label className="text-[10px] text-slate-400 block mb-1">{m.label}</label>
-                              <select
-                                value={(colMap as any)[m.key]}
-                                onChange={(e) =>
-                                  setColMap({ ...colMap, [m.key]: Number(e.target.value) })
-                                }
-                                className="w-full px-2.5 py-1.5 rounded-lg bg-[#0D132B] border border-slate-700 text-white"
-                              >
-                                {importRawHeaders.map((h, i) => (
-                                  <option key={i} value={i}>
-                                    #{i + 1}: {h}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="overflow-x-auto rounded-2xl border border-slate-800">
-                        <table className="w-full text-left text-xs">
-                          <thead>
-                            <tr className="bg-[#070B19] border-b border-slate-800 text-slate-400 uppercase">
-                              <th className="py-2.5 px-3">Baris</th>
-                              <th className="py-2.5 px-3">Nama</th>
-                              <th className="py-2.5 px-3">User_name</th>
-                              <th className="py-2.5 px-3">
-                                {importTargetRole === 'teacher' ? 'NIP' : 'Kelas'}
-                              </th>
-                              <th className="py-2.5 px-3">Email</th>
-                              <th className="py-2.5 px-3">Password</th>
-                              <th className="py-2.5 px-3">Validasi</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-800/60">
-                            {validatedImportRows.map((r) => (
-                              <tr key={r.rowNum} className="bg-[#070B19]/60">
-                                <td className="py-2.5 px-3 font-mono text-slate-400">#{r.rowNum}</td>
-                                <td className="py-2.5 px-3 font-bold text-white">{r.fullName || '-'}</td>
-                                <td className="py-2.5 px-3 font-mono text-cyan-300">{r.username || '-'}</td>
-                                <td className="py-2.5 px-3 font-mono text-slate-300">{r.thirdColVal || '-'}</td>
-                                <td className="py-2.5 px-3 text-slate-300">{r.email || '-'}</td>
-                                <td className="py-2.5 px-3 font-mono text-slate-400">
-                                  {r.password ? '•'.repeat(Math.min(10, r.password.length)) : '-'}
-                                </td>
-                                <td className="py-2.5 px-3">
-                                  {r.isValid ? (
-                                    <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">
-                                      Valid ✓
-                                    </span>
-                                  ) : (
-                                    <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 font-bold">
-                                      {r.errors.join(', ')}
-                                    </span>
-                                  )}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <span className="text-xs text-slate-300">
-                          Valid: <strong className="text-emerald-400">{validatedImportRows.filter((r) => r.isValid).length}</strong> dari{' '}
-                          {validatedImportRows.length} baris
-                        </span>
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setImportRawRows([]);
-                              setImportFileName('');
-                            }}
-                            className="px-4 py-2.5 rounded-xl bg-white/10 text-xs font-bold text-slate-300 cursor-pointer"
-                          >
-                            Batalkan
-                          </button>
-                          <button
-                            type="button"
-                            disabled={isImportingServer}
-                            onClick={handleExecuteValidImport}
-                            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 font-black text-xs cursor-pointer disabled:opacity-50"
-                          >
-                            {isImportingServer ? 'Memproses ke Supabase...' : 'Import Data Valid Sekarang'}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {adminMenuTab === 'export' && (
-                <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/25 p-6 space-y-5">
-                  <h2 className="text-xl font-black text-white">Export Laporan Data Sekolah & Hasil Kuis</h2>
-                  <div className="grid sm:grid-cols-3 gap-4">
-                    <div className="p-4 rounded-2xl bg-[#070B19] border border-slate-800 space-y-3">
-                      <div className="font-bold text-white text-sm">Data Guru ({teachersList.length})</div>
-                      <div className="flex flex-wrap gap-2">
-                        <button onClick={() => exportAccountsReport('teacher', 'xlsx')} className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 text-xs font-bold cursor-pointer">XLSX</button>
-                        <button onClick={() => exportAccountsReport('teacher', 'csv')} className="px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 text-xs font-bold cursor-pointer">CSV</button>
-                        <button onClick={() => exportAccountsReport('teacher', 'docx')} className="px-3 py-1.5 rounded-lg bg-purple-500/20 text-purple-300 text-xs font-bold cursor-pointer">DOCX</button>
-                      </div>
-                    </div>
-                    <div className="p-4 rounded-2xl bg-[#070B19] border border-slate-800 space-y-3">
-                      <div className="font-bold text-white text-sm">Data Siswa ({studentsList.length})</div>
-                      <div className="flex flex-wrap gap-2">
-                        <button onClick={() => exportAccountsReport('student', 'xlsx')} className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 text-xs font-bold cursor-pointer">XLSX</button>
-                        <button onClick={() => exportAccountsReport('student', 'csv')} className="px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 text-xs font-bold cursor-pointer">CSV</button>
-                        <button onClick={() => exportAccountsReport('student', 'docx')} className="px-3 py-1.5 rounded-lg bg-purple-500/20 text-purple-300 text-xs font-bold cursor-pointer">DOCX</button>
-                      </div>
-                    </div>
-                    <div className="p-4 rounded-2xl bg-[#070B19] border border-slate-800 space-y-3">
-                      <div className="font-bold text-white text-sm">Rekap Hasil Kuis ({filteredResults.length})</div>
-                      <div className="flex flex-wrap gap-2">
-                        <button onClick={() => exportQuizResults('xlsx')} className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 text-xs font-bold cursor-pointer">XLSX</button>
-                        <button onClick={() => exportQuizResults('csv')} className="px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 text-xs font-bold cursor-pointer">CSV</button>
-                        <button onClick={() => exportQuizResults('docx')} className="px-3 py-1.5 rounded-lg bg-purple-500/20 text-purple-300 text-xs font-bold cursor-pointer">DOCX</button>
-                        <button onClick={() => exportQuizResults('pdf')} className="px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 text-xs font-bold cursor-pointer">PDF</button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {adminMenuTab === 'results' && (
-                <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/25 p-6 space-y-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h2 className="text-xl font-black text-white">Hasil Kuis Siswa ({filteredResults.length})</h2>
-                      <p className="text-xs text-slate-400">
-                        Admin dapat mengekspor laporan atau menghapus data skor siswa yang tidak valid / uji coba.
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <button onClick={() => exportQuizResults('xlsx')} className="px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-300 text-xs font-bold cursor-pointer">Export XLSX</button>
-                      <button onClick={() => exportQuizResults('pdf')} className="px-3 py-1.5 rounded-xl bg-amber-500/20 text-amber-300 text-xs font-bold cursor-pointer">Cetak PDF</button>
-                      {quizResults.length > 0 && (
-                        <button
-                          onClick={async () => {
-                            if (sbClient) {
-                              for (const item of quizResults) {
-                                try {
-                                  await sbClient.from('game_results').delete().eq('id', item.id);
-                                } catch {
-                                  // ignore if demo id
-                                }
-                              }
-                            }
-                            setQuizResults([]);
-                            await recordAuditLog('CLEAR_ALL_QUIZ_SCORES', 'game_results', {
-                              cleared_count: quizResults.length
-                            });
-                            showToast('Seluruh riwayat skor hasil kuis berhasil dihapus.', 'info');
-                          }}
-                          className="px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-xs font-bold flex items-center gap-1 cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          Hapus Semua Skor
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead>
-                        <tr className="bg-[#070B19] border-b border-slate-800 text-slate-400 uppercase">
-                          <th className="py-3 px-3">Rank</th>
-                          <th className="py-3 px-3">Nama Siswa</th>
-                          <th className="py-3 px-3">Game</th>
-                          <th className="py-3 px-3">Guru</th>
-                          <th className="py-3 px-3">Skor</th>
-                          <th className="py-3 px-3">Benar/Salah</th>
-                          <th className="py-3 px-3 text-right">Aksi</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800/60">
-                        {filteredResults.length === 0 ? (
-                          <tr>
-                            <td colSpan={7} className="py-8 text-center text-slate-400">
-                              Belum ada data skor hasil kuis.
-                            </td>
-                          </tr>
-                        ) : (
-                          filteredResults.map((r) => (
-                            <tr key={r.id} className="hover:bg-white/[0.02]">
-                              <td className="py-3 px-3 font-black text-cyan-400">#{r.rank}</td>
-                              <td className="py-3 px-3 font-bold text-white">{r.studentName}</td>
-                              <td className="py-3 px-3 text-slate-300">{r.gameTitle}</td>
-                              <td className="py-3 px-3 text-slate-400">{r.teacherName}</td>
-                              <td className="py-3 px-3 font-mono font-bold text-amber-300">{r.score}</td>
-                              <td className="py-3 px-3 text-emerald-400">{r.correctCount}✓ / {r.wrongCount}✗</td>
-                              <td className="py-3 px-3 text-right">
-                                <button
-                                  onClick={async () => {
-                                    if (sbClient) {
-                                      try {
-                                        await sbClient.from('game_results').delete().eq('id', r.id);
-                                      } catch {
-                                        // ignore
-                                      }
-                                    }
-                                    setQuizResults((prev) => prev.filter((item) => item.id !== r.id));
-                                    await recordAuditLog('DELETE_QUIZ_SCORE', 'game_results', {
-                                      studentName: r.studentName,
-                                      gameTitle: r.gameTitle,
-                                      score: r.score
-                                    });
-                                    showToast(`Skor ${r.studentName} (${r.score} PTS) berhasil dihapus.`, 'info');
-                                  }}
-                                  className="px-2.5 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 font-bold inline-flex items-center gap-1 cursor-pointer"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                  Hapus
-                                </button>
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {adminMenuTab === 'games' && (
-                <div className="space-y-6">
-                  {/* Manajemen Kategori Pelajaran oleh Admin & Super Admin */}
-                  <div className="rounded-3xl bg-[#0D132B] border border-cyan-500/25 p-6 space-y-4">
-                    <div>
-                      <h2 className="text-lg font-black text-white">Manajemen Kategori Pelajaran</h2>
-                      <p className="text-xs text-slate-400">
-                        Tambah atau hapus kategori pelajaran yang tersedia di Game Creator Studio dan filter Katalog Game.
-                      </p>
-                    </div>
-
-                    <form
-                      onSubmit={async (e) => {
-                        e.preventDefault();
-                        const cleanCat = newCategoryInput.trim();
-                        if (!cleanCat) return;
-                        if (lessonCategories.some((c) => c.toLowerCase() === cleanCat.toLowerCase())) {
-                          showToast('Kategori pelajaran tersebut sudah ada.', 'error');
-                          return;
-                        }
-                        setLessonCategories((prev) => [...prev, cleanCat]);
-                        setNewCategoryInput('');
-                        if (sbClient) {
-                          const slug = cleanCat
-                            .toLowerCase()
-                            .replace(/[^a-z0-9]+/g, '-')
-                            .replace(/^-|-$/g, '');
-                          await sbClient.from('game_categories').insert({
-                            name: cleanCat,
-                            slug: `${slug}-${Date.now().toString().slice(-4)}`
-                          });
-                        }
-                        await recordAuditLog('CREATE_CATEGORY', 'game_categories', { name: cleanCat });
-                        showToast(`Kategori "${cleanCat}" berhasil ditambahkan!`, 'success');
-                      }}
-                      className="flex flex-col sm:flex-row gap-2.5"
-                    >
-                      <input
-                        type="text"
-                        required
-                        placeholder="Nama kategori baru (mis: Game Desain Grafis)"
-                        value={newCategoryInput}
-                        onChange={(e) => setNewCategoryInput(e.target.value)}
-                        className="flex-1 px-4 py-2.5 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs focus:outline-none focus:border-cyan-400"
-                      />
-                      <button
-                        type="submit"
-                        className="px-5 py-2.5 rounded-xl bg-emerald-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                      >
-                        <Plus className="w-4 h-4" /> Tambah Kategori
-                      </button>
-                    </form>
-
-                    <div className="flex flex-wrap gap-2">
-                      {lessonCategories.map((cat) => (
-                        <div
-                          key={cat}
-                          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#070B19] border border-indigo-500/30 text-xs font-bold text-slate-200"
-                        >
-                          <span>{cat}</span>
-                          <button
-                            type="button"
-                            title={`Hapus kategori ${cat}`}
-                            onClick={async () => {
-                              if (lessonCategories.length <= 1) {
-                                showToast('Minimal harus tersisa 1 kategori pelajaran.', 'error');
-                                return;
-                              }
-                              setLessonCategories((prev) => prev.filter((item) => item !== cat));
-                              if (sbClient) {
-                                await sbClient.from('game_categories').delete().eq('name', cat);
-                              }
-                              await recordAuditLog('DELETE_CATEGORY', 'game_categories', { name: cat });
-                              showToast(`Kategori "${cat}" telah dihapus.`, 'info');
-                            }}
-                            className="text-rose-400 hover:text-rose-300 p-0.5 rounded cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/25 p-6 space-y-4">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <h2 className="text-xl font-black text-white">Manajemen Seluruh Game ({games.length})</h2>
-                      <button
-                        onClick={() => {
-                          setCreatorSubView('list');
-                          setActivePage('creator');
-                        }}
-                        className="px-4 py-2.5 rounded-xl bg-cyan-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <Wand2 className="w-4 h-4" /> Buka Game Creator Studio
-                      </button>
-                    </div>
-
-                    <div className="grid md:grid-cols-2 gap-4">
-                      {games.map((g) => (
-                        <div
-                          key={g.id}
-                          className="p-4 rounded-2xl bg-[#070B19] border border-slate-800 flex items-center justify-between gap-3"
-                        >
-                          <div>
-                            <div className="font-bold text-white text-sm">{g.title}</div>
-                            <div className="text-[11px] text-slate-400">
-                              {g.creatorName} • {g.category} • {g.questions.length} Soal
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              onClick={async () => {
-                                const nextStatus = g.status === 'published' ? 'disabled' : 'published';
-                                await persistGameToDatabase({ ...g, status: nextStatus });
-                                await recordAuditLog('TOGGLE_GAME_STATUS', 'games', { title: g.title, status: nextStatus });
-                                showToast(`Status game "${g.title}" diubah menjadi ${nextStatus}.`, 'info');
-                              }}
-                              className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer ${
-                                g.status === 'published'
-                                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                  : 'bg-slate-800 text-slate-400'
-                              }`}
-                            >
-                              {g.status === 'published' ? 'Aktif' : 'Nonaktif'}
-                            </button>
-                            <button
-                              onClick={async () => {
-                                await deleteGameFromDatabase(g.id);
-                                await recordAuditLog('DELETE_GAME', 'games', { title: g.title });
-                                showToast(`Game "${g.title}" dihapus.`, 'info');
-                              }}
-                              className="p-2 rounded-xl bg-rose-500/15 text-rose-300 cursor-pointer"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {adminMenuTab === 'settings' && (
-                <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/25 p-6 space-y-4">
-                  <h2 className="text-xl font-black text-white">Pengaturan Sistem & Keamanan Supabase</h2>
-                  <p className="text-xs text-slate-300 leading-relaxed">
-                    Kelola koneksi project Supabase, jalankan migrasi SQL 16 tabel & RLS policies, atau deploy Edge Functions untuk bootstrap <code>admin_darulfikri</code> dan provisioning akun.
-                  </p>
-                  <div className="flex flex-wrap gap-3">
-                    <button
-                      onClick={() => setActivePage('supabase-guide')}
-                      className="px-5 py-3 rounded-xl bg-emerald-400 text-slate-950 font-black text-xs cursor-pointer"
-                    >
-                      Buka Konfigurasi SQL, RLS & Edge Functions
-                    </button>
-                    <button
-                      onClick={() => setShowBootstrapModal(true)}
-                      className="px-5 py-3 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold text-xs cursor-pointer"
-                    >
-                      Bootstrap Super Admin (admin_darulfikri)
-                    </button>
-                  </div>
-                </div>
-              )}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-3xl bg-gradient-to-r from-[#0F1736] to-[#1D154A] border border-emerald-500/30">
+            <div>
+              <span className="px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 text-xs font-black uppercase">
+                PANEL ADMINISTRATOR SEKOLAH • {currentUser.role.replace('_', ' ')}
+              </span>
+              <h1 className="text-2xl sm:text-3xl font-black text-white mt-2">
+                Manajemen Portal & Data Sekolah
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-300 mt-1">
+                Kelola tampilan halaman depan, logo, akun guru/siswa, kelas, game, dan laporan hasil belajar.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => {
+                  setCreatorSubView('list');
+                  setActivePage('creator');
+                }}
+                className="px-4 py-2.5 rounded-xl bg-purple-600 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+              >
+                <Wand2 className="w-4 h-4" /> Game Creator Studio
+              </button>
+              <button
+                onClick={() => setShowCreateRoomModal(true)}
+                className="px-4 py-2.5 rounded-xl bg-emerald-400 text-slate-950 text-xs font-black flex items-center gap-1.5 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" /> Buka Room Live
+              </button>
             </div>
           </div>
 
-          {/* Modal Konfirmasi Hapus Seluruh Guru / Seluruh Siswa */}
-          {confirmBulkDeleteRole && (
-            <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className="w-full max-w-md rounded-3xl bg-[#0D132B] border border-rose-500/50 p-6 space-y-4 shadow-2xl">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-black text-rose-300 flex items-center gap-2">
-                    <AlertCircle className="w-5 h-5 text-rose-400" />
-                    Konfirmasi Hapus Massal
-                  </h3>
-                  <button
-                    onClick={() => setConfirmBulkDeleteRole(null)}
-                    className="text-slate-400 hover:text-white font-bold cursor-pointer"
-                  >
-                    ✕
-                  </button>
+          <div className="flex flex-wrap gap-1.5 p-2 rounded-2xl bg-[#0D132B] border border-indigo-500/25">
+            {[
+              { id: 'overview', label: 'Ringkasan', icon: BarChart3 },
+              { id: 'appearance', label: 'Tampilan & Logo', icon: Sliders },
+              { id: 'teachers', label: `Data Guru (${teachersList.length})`, icon: UserCheck },
+              { id: 'students', label: `Data Siswa (${studentsList.length})`, icon: Users },
+              { id: 'classes', label: `Data Kelas (${schoolClasses.length})`, icon: Building2 },
+              { id: 'games', label: `Kelola Game (${games.length})`, icon: Gamepad2 },
+              { id: 'results', label: `Hasil Kuis (${quizResults.length})`, icon: ClipboardList },
+              { id: 'import', label: 'Import Excel/CSV', icon: Upload },
+              { id: 'export', label: 'Export & Audit', icon: Download }
+            ].map((tab) => {
+              const IconComp = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setAdminMenuTab(tab.id as any);
+                    setAccountPage(1);
+                  }}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    adminMenuTab === tab.id
+                      ? 'bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950'
+                      : 'text-slate-300 hover:bg-white/5'
+                  }`}
+                >
+                  <IconComp className="w-3.5 h-3.5" />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {adminMenuTab === 'overview' && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                  { label: 'Total Guru', val: teachersList.length, color: 'text-cyan-400' },
+                  { label: 'Total Siswa', val: studentsList.length, color: 'text-emerald-400' },
+                  { label: 'Room Aktif / Riwayat', val: `${activeRoomsCount} / ${allRooms.length}`, color: 'text-purple-400' },
+                  { label: 'Rata-rata Skor', val: `${avgScore} PTS`, color: 'text-amber-400' }
+                ].map((st, idx) => (
+                  <div key={idx} className="p-5 rounded-2xl bg-[#0D132B] border border-indigo-500/25">
+                    <div className={`text-2xl font-black ${st.color}`}>{st.val}</div>
+                    <div className="text-xs text-slate-400 font-semibold mt-1">{st.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {adminMenuTab === 'appearance' && (
+            <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/25 p-6 space-y-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-black text-white">Pengaturan Tampilan Portal, Logo & Halaman Depan</h2>
+                  <p className="text-xs text-slate-400">
+                    Perubahan disimpan ke Supabase & langsung tersinkronisasi ke seluruh perangkat siswa/guru.
+                  </p>
                 </div>
-                <p className="text-xs text-slate-300 leading-relaxed">
-                  Apakah Anda yakin ingin menghapus{' '}
-                  <strong className="text-rose-300">
-                    SELURUH DATA{' '}
-                    {confirmBulkDeleteRole === 'teacher'
-                      ? `GURU (${teachersList.length} akun)`
-                      : `SISWA (${studentsList.length} akun)`}
-                  </strong>
-                  ? Tindakan ini akan menghapus semua akun dengan role{' '}
-                  <code>{confirmBulkDeleteRole}</code> dari daftar manajemen dan database Supabase.
-                </p>
-                <div className="flex gap-2.5 pt-2">
+                <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => setConfirmBulkDeleteRole(null)}
-                    className="flex-1 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-200 text-xs font-bold cursor-pointer"
+                    onClick={() => setDraftSiteSettings(DEFAULT_SITE_SETTINGS)}
+                    className="px-4 py-2 rounded-xl bg-white/10 text-xs font-bold text-slate-200 cursor-pointer"
                   >
-                    Batal
+                    Reset Default
                   </button>
                   <button
                     type="button"
                     onClick={async () => {
-                      const targetRole = confirmBulkDeleteRole;
-                      const targets = managedAccounts.filter((a) => a.role === targetRole);
+                      setSiteSettings(draftSiteSettings);
+                      try {
+                        localStorage.setItem(SITE_SETTINGS_STORAGE_KEY, JSON.stringify(draftSiteSettings));
+                      } catch {
+                        // ignore
+                      }
                       if (sbClient) {
-                        try {
-                          await sbClient.from('profiles').delete().eq('role_code', targetRole);
-                        } catch {
-                          // ignore if RLS blocks non-uuid rows
+                        const { error: saveErr } = await sbClient.from('site_settings').upsert({
+                          id: 'main',
+                          config: draftSiteSettings,
+                          updated_at: new Date().toISOString()
+                        });
+                        if (saveErr) {
+                          showToast(
+                            `Gagal simpan ke Supabase (${saveErr.message}). Jalankan SQL table site_settings.`,
+                            'error'
+                          );
+                          return;
                         }
                       }
-                      setManagedAccounts((prev) => prev.filter((a) => a.role !== targetRole));
-                      if (targetRole === 'student') {
-                        setDbStudentDirectory([]);
-                      }
-                      await recordAuditLog(
-                        targetRole === 'teacher' ? 'DELETE_ALL_TEACHERS' : 'DELETE_ALL_STUDENTS',
-                        'profiles',
-                        { deleted_count: targets.length }
-                      );
-                      setConfirmBulkDeleteRole(null);
-                      setAccountPage(1);
-                      showToast(
-                        `Seluruh data ${targetRole === 'teacher' ? 'Guru' : 'Siswa'} (${targets.length} akun) berhasil dihapus.`,
-                        'info'
-                      );
+                      await recordAuditLog('UPDATE_SITE_SETTINGS', 'site_settings', {
+                        brandTitle: draftSiteSettings.brandTitle
+                      });
+                      showToast('Tampilan portal & teks halaman depan berhasil disimpan & diterapkan!', 'success');
                     }}
-                    className="flex-1 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-400 text-white font-black text-xs cursor-pointer"
+                    className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 font-black text-xs cursor-pointer"
                   >
-                    Ya, Hapus Semua
+                    Simpan & Terapkan
                   </button>
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-5">
+                <div className="p-4 rounded-2xl bg-[#070B19] border border-slate-800 space-y-3">
+                  <h3 className="text-xs font-black uppercase text-cyan-400">1. Identitas Brand & Logo</h3>
+                  <div>
+                    <label className="text-[11px] text-slate-400 block mb-1">Judul Portal (Navbar)</label>
+                    <input
+                      type="text"
+                      value={draftSiteSettings.brandTitle}
+                      onChange={(e) => setDraftSiteSettings({ ...draftSiteSettings, brandTitle: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl bg-[#0D132B] border border-slate-700 text-white text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-slate-400 block mb-1">Subjudul Portal</label>
+                    <input
+                      type="text"
+                      value={draftSiteSettings.brandSubtitle}
+                      onChange={(e) => setDraftSiteSettings({ ...draftSiteSettings, brandSubtitle: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl bg-[#0D132B] border border-slate-700 text-white text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-slate-400 block mb-1">Upload Logo atau URL Gambar</label>
+                    <div className="flex flex-col gap-2">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        disabled={uploadingLogo}
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          try {
+                            setUploadingLogo(true);
+                            const url = await handleUploadAssetFile(file, 'game-thumbnails');
+                            setDraftSiteSettings({ ...draftSiteSettings, logoUrl: url });
+                            showToast('Logo berhasil diunggah!', 'success');
+                          } catch (err: any) {
+                            showToast(err.message || 'Gagal unggah logo.', 'error');
+                          } finally {
+                            setUploadingLogo(false);
+                          }
+                        }}
+                        className="text-xs text-slate-300"
+                      />
+                      <input
+                        type="text"
+                        placeholder="https://... (URL Logo opsional)"
+                        value={draftSiteSettings.logoUrl}
+                        onChange={(e) => setDraftSiteSettings({ ...draftSiteSettings, logoUrl: e.target.value })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#0D132B] border border-slate-700 text-white text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-[#070B19] border border-slate-800 space-y-3">
+                  <h3 className="text-xs font-black uppercase text-emerald-400">2. Teks Hero Halaman Depan</h3>
+                  <div>
+                    <label className="text-[11px] text-slate-400 block mb-1">Badge Atas</label>
+                    <input
+                      type="text"
+                      value={draftSiteSettings.heroBadge}
+                      onChange={(e) => setDraftSiteSettings({ ...draftSiteSettings, heroBadge: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl bg-[#0D132B] border border-slate-700 text-white text-xs"
+                    />
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <input
+                      type="text"
+                      value={draftSiteSettings.heroTitlePrefix}
+                      onChange={(e) => setDraftSiteSettings({ ...draftSiteSettings, heroTitlePrefix: e.target.value })}
+                      className="px-2.5 py-2 rounded-xl bg-[#0D132B] border border-slate-700 text-white text-xs"
+                    />
+                    <input
+                      type="text"
+                      value={draftSiteSettings.heroTitleHighlight}
+                      onChange={(e) => setDraftSiteSettings({ ...draftSiteSettings, heroTitleHighlight: e.target.value })}
+                      className="px-2.5 py-2 rounded-xl bg-[#0D132B] border border-slate-700 text-cyan-300 text-xs"
+                    />
+                    <input
+                      type="text"
+                      value={draftSiteSettings.heroTitleSuffix}
+                      onChange={(e) => setDraftSiteSettings({ ...draftSiteSettings, heroTitleSuffix: e.target.value })}
+                      className="px-2.5 py-2 rounded-xl bg-[#0D132B] border border-slate-700 text-white text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-slate-400 block mb-1">Deskripsi Halaman Depan</label>
+                    <textarea
+                      rows={2}
+                      value={draftSiteSettings.heroSubtitle}
+                      onChange={(e) => setDraftSiteSettings({ ...draftSiteSettings, heroSubtitle: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl bg-[#0D132B] border border-slate-700 text-white text-xs"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[11px] text-slate-400 block mb-1">Jumlah Game di Beranda</label>
+                      <select
+                        value={draftSiteSettings.homeGamesLimit}
+                        onChange={(e) =>
+                          setDraftSiteSettings({ ...draftSiteSettings, homeGamesLimit: Number(e.target.value) })
+                        }
+                        className="w-full px-3 py-2 rounded-xl bg-[#0D132B] border border-slate-700 text-white text-xs"
+                      >
+                        {[3, 6, 9, 12, 50].map((n) => (
+                          <option key={n} value={n}>{n === 50 ? 'Semua Game' : `${n} Game`}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-slate-400 block mb-1">Judul Katalog Beranda</label>
+                      <input
+                        type="text"
+                        value={draftSiteSettings.homeCatalogTitle}
+                        onChange={(e) => setDraftSiteSettings({ ...draftSiteSettings, homeCatalogTitle: e.target.value })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#0D132B] border border-slate-700 text-white text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-[#070B19] border border-slate-800 space-y-3">
+                <h3 className="text-xs font-black uppercase text-purple-400">3. Konten Halaman Menu "Tentang"</h3>
+                <div className="grid md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] text-slate-400 block mb-1">Judul Halaman Tentang</label>
+                    <input
+                      type="text"
+                      value={draftSiteSettings.aboutTitle}
+                      onChange={(e) => setDraftSiteSettings({ ...draftSiteSettings, aboutTitle: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl bg-[#0D132B] border border-slate-700 text-white text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-slate-400 block mb-1">Deskripsi Utama Tentang</label>
+                    <input
+                      type="text"
+                      value={draftSiteSettings.aboutDescription}
+                      onChange={(e) => setDraftSiteSettings({ ...draftSiteSettings, aboutDescription: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl bg-[#0D132B] border border-slate-700 text-white text-xs"
+                    />
+                  </div>
+                </div>
+                <div className="grid sm:grid-cols-3 gap-3">
+                  <div className="space-y-1.5">
+                    <input
+                      type="text"
+                      value={draftSiteSettings.aboutCard1Title}
+                      onChange={(e) => setDraftSiteSettings({ ...draftSiteSettings, aboutCard1Title: e.target.value })}
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-[#0D132B] border border-slate-700 text-emerald-300 text-xs font-bold"
+                    />
+                    <textarea
+                      rows={2}
+                      value={draftSiteSettings.aboutCard1Desc}
+                      onChange={(e) => setDraftSiteSettings({ ...draftSiteSettings, aboutCard1Desc: e.target.value })}
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-[#0D132B] border border-slate-700 text-white text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <input
+                      type="text"
+                      value={draftSiteSettings.aboutCard2Title}
+                      onChange={(e) => setDraftSiteSettings({ ...draftSiteSettings, aboutCard2Title: e.target.value })}
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-[#0D132B] border border-slate-700 text-cyan-300 text-xs font-bold"
+                    />
+                    <textarea
+                      rows={2}
+                      value={draftSiteSettings.aboutCard2Desc}
+                      onChange={(e) => setDraftSiteSettings({ ...draftSiteSettings, aboutCard2Desc: e.target.value })}
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-[#0D132B] border border-slate-700 text-white text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <input
+                      type="text"
+                      value={draftSiteSettings.aboutCard3Title}
+                      onChange={(e) => setDraftSiteSettings({ ...draftSiteSettings, aboutCard3Title: e.target.value })}
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-[#0D132B] border border-slate-700 text-purple-300 text-xs font-bold"
+                    />
+                    <textarea
+                      rows={2}
+                      value={draftSiteSettings.aboutCard3Desc}
+                      onChange={(e) => setDraftSiteSettings({ ...draftSiteSettings, aboutCard3Desc: e.target.value })}
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-[#0D132B] border border-slate-700 text-white text-xs"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Modal Tambah Akun Guru / Siswa Tunggal via Edge Function */}
+          {(adminMenuTab === 'teachers' || adminMenuTab === 'students') && (
+            <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/25 p-6 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-lg font-black text-white">
+                  {adminMenuTab === 'teachers' ? 'Manajemen Data Guru' : 'Manajemen Data Siswa'}
+                </h2>
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    type="text"
+                    placeholder="Cari nama, username, NIP/NIS..."
+                    value={accountSearch}
+                    onChange={(e) => {
+                      setAccountSearch(e.target.value);
+                      setAccountPage(1);
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs"
+                  />
+                  <button
+                    onClick={() => {
+                      setFormAccFullName('');
+                      setFormAccUsername('');
+                      setFormAccEmail('');
+                      setFormAccNipNis('');
+                      setFormAccClass(schoolClasses[0]?.name || 'XI RPL 1');
+                      setNewAccModalOpen(adminMenuTab === 'teachers' ? 'teacher' : 'student');
+                    }}
+                    className="px-4 py-2 rounded-xl bg-emerald-400 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    Tambah {adminMenuTab === 'teachers' ? 'Guru' : 'Siswa'}
+                  </button>
+                  <button
+                    onClick={() =>
+                      setConfirmBulkDeleteRole(adminMenuTab === 'teachers' ? 'teacher' : 'student')
+                    }
+                    className="px-3.5 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Hapus Semua {adminMenuTab === 'teachers' ? 'Guru' : 'Siswa'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-slate-400 uppercase">
+                      <th className="py-3 px-3">Nama Lengkap</th>
+                      <th className="py-3 px-3">Username</th>
+                      <th className="py-3 px-3">{adminMenuTab === 'teachers' ? 'NIP' : 'NIS / Kelas'}</th>
+                      <th className="py-3 px-3">Email</th>
+                      <th className="py-3 px-3 text-right">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {paginatedAccounts.map((acc) => (
+                      <tr key={acc.id}>
+                        <td className="py-3 px-3 font-bold text-white">{acc.fullName}</td>
+                        <td className="py-3 px-3 font-mono text-cyan-300">{acc.username}</td>
+                        <td className="py-3 px-3 text-slate-300">
+                          {acc.role === 'teacher' ? acc.nipNis : `${acc.nipNis} • ${acc.className}`}
+                        </td>
+                        <td className="py-3 px-3 text-slate-400">{acc.email}</td>
+                        <td className="py-3 px-3 text-right">
+                          <button
+                            onClick={async () => {
+                              if (sbClient) {
+                                try {
+                                  await sbClient.from('profiles').delete().eq('id', acc.id);
+                                } catch {
+                                  // ignore
+                                }
+                              }
+                              setManagedAccounts((prev) => prev.filter((item) => item.id !== acc.id));
+                              await recordAuditLog('DELETE_USER_ACCOUNT', 'profiles', {
+                                username: acc.username,
+                                role: acc.role
+                              });
+                              showToast(`Akun ${acc.fullName} berhasil dihapus.`, 'info');
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-rose-500/15 text-rose-300 font-bold cursor-pointer"
+                          >
+                            Hapus
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {totalAccountPages > 1 && (
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button
+                    disabled={accountPage <= 1}
+                    onClick={() => setAccountPage((p) => Math.max(1, p - 1))}
+                    className="px-3 py-1 rounded-lg bg-white/10 text-xs disabled:opacity-40"
+                  >
+                    Prev
+                  </button>
+                  <span className="text-xs text-slate-400">
+                    Hal {accountPage} / {totalAccountPages}
+                  </span>
+                  <button
+                    disabled={accountPage >= totalAccountPages}
+                    onClick={() => setAccountPage((p) => Math.min(totalAccountPages, p + 1))}
+                    className="px-3 py-1 rounded-lg bg-white/10 text-xs disabled:opacity-40"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {adminMenuTab === 'classes' && (
+            <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/25 p-6 space-y-4">
+              <h2 className="text-lg font-black text-white">Manajemen Data Kelas</h2>
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  const clean = newClassName.trim();
+                  if (!clean) return;
+                  const newItem: SchoolClassItem = {
+                    id: crypto.randomUUID ? crypto.randomUUID() : `cls_${Date.now()}`,
+                    name: clean,
+                    gradeLevel: clean.split(' ')[0] || 'XI',
+                    major: newClassMajor.trim() || 'RPL / TKJ',
+                    academicYear: '2026/2027',
+                    studentCount: 0,
+                    isActive: true
+                  };
+                  setSchoolClasses((prev) => [...prev, newItem]);
+                  setNewClassName('');
+                  if (sbClient) {
+                    await sbClient.from('classes').upsert({
+                      id: newItem.id,
+                      name: newItem.name,
+                      grade_level: newItem.gradeLevel,
+                      major: newItem.major,
+                      academic_year: newItem.academicYear,
+                      is_active: true
+                    });
+                  }
+                  showToast(`Kelas ${clean} berhasil ditambahkan!`, 'success');
+                }}
+                className="flex flex-wrap gap-2"
+              >
+                <input
+                  type="text"
+                  required
+                  placeholder="Nama Kelas (misal: XII TKJ 1)"
+                  value={newClassName}
+                  onChange={(e) => setNewClassName(e.target.value)}
+                  className="px-3.5 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs"
+                />
+                <input
+                  type="text"
+                  placeholder="Kompetensi Keahlian"
+                  value={newClassMajor}
+                  onChange={(e) => setNewClassMajor(e.target.value)}
+                  className="px-3.5 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs"
+                />
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl bg-emerald-400 text-slate-950 font-black text-xs cursor-pointer"
+                >
+                  + Tambah Kelas
+                </button>
+              </form>
+
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {schoolClasses.map((cls) => (
+                  <div
+                    key={cls.id}
+                    className="p-4 rounded-2xl bg-[#070B19] border border-slate-800 flex items-center justify-between"
+                  >
+                    <div>
+                      <div className="font-black text-white text-sm">{cls.name}</div>
+                      <div className="text-[11px] text-slate-400">{cls.major}</div>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        if (sbClient) {
+                          try {
+                            await sbClient.from('classes').delete().eq('id', cls.id);
+                          } catch {
+                            // ignore
+                          }
+                        }
+                        setSchoolClasses((prev) => prev.filter((c) => c.id !== cls.id));
+                        showToast(`Kelas ${cls.name} dihapus.`, 'info');
+                      }}
+                      className="text-rose-400 hover:text-rose-300 text-xs font-bold cursor-pointer"
+                    >
+                      Hapus
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {adminMenuTab === 'games' && (
+            <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/25 p-6 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-lg font-black text-white">Moderasi Katalog Game & Kategori</h2>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Kategori baru..."
+                    value={newCategoryInput}
+                    onChange={(e) => setNewCategoryInput(e.target.value)}
+                    className="px-3 py-1.5 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs"
+                  />
+                  <button
+                    onClick={async () => {
+                      const cat = newCategoryInput.trim();
+                      if (!cat) return;
+                      setLessonCategories((prev) => (prev.includes(cat) ? prev : [...prev, cat]));
+                      setNewCategoryInput('');
+                      if (sbClient) {
+                        await sbClient.from('game_categories').upsert({
+                          name: cat,
+                          slug: cat.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+                        });
+                      }
+                      showToast(`Kategori "${cat}" ditambahkan.`, 'success');
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-cyan-400 text-slate-950 font-black text-xs cursor-pointer"
+                  >
+                    + Kategori
+                  </button>
+                </div>
+              </div>
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {games.map((g) => (
+                  <div key={g.id} className="p-4 rounded-2xl bg-[#070B19] border border-slate-800 space-y-2">
+                    <div className="font-bold text-white text-sm">{g.title}</div>
+                    <div className="text-xs text-slate-400">
+                      Oleh {g.creatorName} • {g.category}
+                    </div>
+                    <div className="flex gap-2 pt-2">
+                      <button
+                        onClick={async () => {
+                          await deleteGameFromDatabase(g.id);
+                          showToast('Game dihapus.', 'info');
+                        }}
+                        className="px-3 py-1 rounded-lg bg-rose-500/20 text-rose-300 text-xs font-bold cursor-pointer"
+                      >
+                        Hapus Game
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {adminMenuTab === 'results' && (
+            <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/25 p-6 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-lg font-black text-white">Laporan Hasil Kuis & Skor Siswa</h2>
+                {quizResults.length > 0 && (
+                  <button
+                    onClick={async () => {
+                      if (sbClient) {
+                        for (const item of quizResults) {
+                          try {
+                            await sbClient.from('game_results').delete().eq('id', item.id);
+                          } catch {
+                            // ignore
+                          }
+                        }
+                      }
+                      setQuizResults([]);
+                      await recordAuditLog('CLEAR_ALL_SCORES', 'game_results', {
+                        deleted_count: quizResults.length
+                      });
+                      showToast('Seluruh riwayat skor berhasil dihapus.', 'info');
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Hapus Semua Skor
+                  </button>
+                )}
+              </div>
+
+              <div className="grid sm:grid-cols-3 gap-2">
+                <input
+                  type="text"
+                  placeholder="Cari nama siswa / game..."
+                  value={resSearch}
+                  onChange={(e) => {
+                    setResSearch(e.target.value);
+                    setResPage(1);
+                  }}
+                  className="px-3 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs"
+                />
+                <select
+                  value={resClassFilter}
+                  onChange={(e) => {
+                    setResClassFilter(e.target.value);
+                    setResPage(1);
+                  }}
+                  className="px-3 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs"
+                >
+                  <option value="Semua">Semua Kelas</option>
+                  {schoolClasses.map((c) => (
+                    <option key={c.id} value={c.name}>{c.name}</option>
+                  ))}
+                </select>
+                <input
+                  type="date"
+                  value={resDateFilter}
+                  onChange={(e) => {
+                    setResDateFilter(e.target.value);
+                    setResPage(1);
+                  }}
+                  className="px-3 py-2 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs"
+                />
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-slate-400 uppercase">
+                      <th className="py-3 px-3">Siswa</th>
+                      <th className="py-3 px-3">Kelas</th>
+                      <th className="py-3 px-3">Game</th>
+                      <th className="py-3 px-3">Tanggal</th>
+                      <th className="py-3 px-3">Skor</th>
+                      <th className="py-3 px-3 text-right">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {paginatedResults.map((r) => (
+                      <tr key={r.id}>
+                        <td className="py-3 px-3 font-bold text-white">{r.studentName}</td>
+                        <td className="py-3 px-3 text-slate-300">{r.className}</td>
+                        <td className="py-3 px-3 text-cyan-300">{r.gameTitle}</td>
+                        <td className="py-3 px-3 text-slate-400">{r.playedDate}</td>
+                        <td className="py-3 px-3 font-mono font-black text-amber-300">{r.score}</td>
+                        <td className="py-3 px-3 text-right">
+                          <button
+                            onClick={async () => {
+                              if (sbClient) {
+                                try {
+                                  await sbClient.from('game_results').delete().eq('id', r.id);
+                                } catch {
+                                  // ignore
+                                }
+                              }
+                              setQuizResults((prev) => prev.filter((item) => item.id !== r.id));
+                              await recordAuditLog('DELETE_QUIZ_SCORE', 'game_results', {
+                                student_name: r.studentName,
+                                score: r.score
+                              });
+                              showToast(`Skor ${r.studentName} berhasil dihapus.`, 'info');
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-rose-500/15 text-rose-300 font-bold cursor-pointer"
+                          >
+                            Hapus
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {totalResPages > 1 && (
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    disabled={resPage <= 1}
+                    onClick={() => setResPage((p) => Math.max(1, p - 1))}
+                    className="px-3 py-1 rounded-lg bg-white/10 text-xs disabled:opacity-40"
+                  >
+                    Prev
+                  </button>
+                  <span className="text-xs text-slate-400">
+                    Hal {resPage} / {totalResPages}
+                  </span>
+                  <button
+                    disabled={resPage >= totalResPages}
+                    onClick={() => setResPage((p) => Math.min(totalResPages, p + 1))}
+                    className="px-3 py-1 rounded-lg bg-white/10 text-xs disabled:opacity-40"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {adminMenuTab === 'import' && (
+            <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/25 p-6 space-y-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-black text-white">Import Massal Akun Guru & Siswa</h2>
+                  <p className="text-xs text-slate-400">
+                    Unduh template Excel (.xlsx), CSV, atau Word (.docx), isi data, lalu unggah kembali.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  {(['teacher', 'student'] as const).map((r) => (
+                    <button
+                      key={r}
+                      onClick={() => setImportTargetRole(r)}
+                      className={`px-4 py-2 rounded-xl text-xs font-black cursor-pointer ${
+                        importTargetRole === r
+                          ? 'bg-cyan-400 text-slate-950'
+                          : 'bg-[#070B19] text-slate-300 border border-slate-700'
+                      }`}
+                    >
+                      {r === 'teacher' ? 'Import Data Guru' : 'Import Data Siswa'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => downloadImportTemplate(importTargetRole, 'xlsx')}
+                  className="px-3.5 py-2 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold cursor-pointer"
+                >
+                  Unduh Template .XLSX
+                </button>
+                <button
+                  onClick={() => downloadImportTemplate(importTargetRole, 'csv')}
+                  className="px-3.5 py-2 rounded-xl bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-bold cursor-pointer"
+                >
+                  Unduh Template .CSV
+                </button>
+                <button
+                  onClick={() => downloadImportTemplate(importTargetRole, 'docx')}
+                  className="px-3.5 py-2 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/30 text-xs font-bold cursor-pointer"
+                >
+                  Unduh Template .DOCX
+                </button>
+              </div>
+
+              <div>
+                <input
+                  type="file"
+                  accept=".xlsx,.csv,.doc,.docx"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleParseImportFile(f);
+                  }}
+                  className="text-xs text-slate-300"
+                />
+                {importFileName && (
+                  <p className="text-xs text-cyan-300 mt-1">
+                    File dimuat: {importFileName} ({validatedImportRows.length} baris)
+                  </p>
+                )}
+              </div>
+
+              {validatedImportRows.length > 0 && (
+                <div className="space-y-3">
+                  <div className="overflow-x-auto max-h-64">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-slate-800 text-slate-400">
+                          <th className="py-2 px-2">Baris</th>
+                          <th className="py-2 px-2">Nama</th>
+                          <th className="py-2 px-2">Username</th>
+                          <th className="py-2 px-2">{importTargetRole === 'teacher' ? 'NIP' : 'Kelas'}</th>
+                          <th className="py-2 px-2">Email</th>
+                          <th className="py-2 px-2">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60">
+                        {validatedImportRows.map((row) => (
+                          <tr key={row.rowNum}>
+                            <td className="py-2 px-2 text-slate-400">{row.rowNum}</td>
+                            <td className="py-2 px-2 text-white font-bold">{row.fullName}</td>
+                            <td className="py-2 px-2 text-cyan-300">{row.username}</td>
+                            <td className="py-2 px-2 text-slate-300">{row.thirdColVal}</td>
+                            <td className="py-2 px-2 text-slate-300">{row.email}</td>
+                            <td className="py-2 px-2">
+                              {row.isValid ? (
+                                <span className="text-emerald-400 font-bold">Valid</span>
+                              ) : (
+                                <span className="text-rose-400">{row.errors.join(', ')}</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <button
+                    disabled={isImportingServer}
+                    onClick={handleExecuteValidImport}
+                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 font-black text-xs cursor-pointer"
+                  >
+                    {isImportingServer ? 'Menyimpan...' : 'Impor Semua Baris Valid'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {adminMenuTab === 'export' && (
+            <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/25 p-6 space-y-5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-lg font-black text-white">Export Laporan & Audit Log Keamanan</h2>
+                <button
+                  onClick={() => {
+                    const rows = [
+                      ['Siswa', 'Kelas', 'Game', 'Tanggal', 'Skor', 'Benar', 'Salah'],
+                      ...quizResults.map((r) => [
+                        r.studentName,
+                        r.className,
+                        r.gameTitle,
+                        r.playedDate,
+                        String(r.score),
+                        String(r.correctCount),
+                        String(r.wrongCount)
+                      ])
+                    ];
+                    const xlsxBytes = buildRealXlsxUint8Array('Laporan_Skor', rows);
+                    triggerDownloadBlob(
+                      xlsxBytes,
+                      'laporan_hasil_kuis.xlsx',
+                      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                    );
+                    showToast('Laporan Excel berhasil diunduh!', 'success');
+                  }}
+                  className="px-4 py-2 rounded-xl bg-emerald-400 text-slate-950 font-black text-xs cursor-pointer"
+                >
+                  Unduh Laporan Skor (.XLSX)
+                </button>
+              </div>
+              <div className="space-y-2 max-h-72 overflow-y-auto">
+                {auditLogs.map((log) => (
+                  <div
+                    key={log.id}
+                    className="p-3 rounded-xl bg-[#070B19] border border-slate-800 flex items-center justify-between text-xs"
+                  >
+                    <div>
+                      <span className="font-black text-cyan-300">{log.action}</span>{' '}
+                      <span className="text-slate-400">pada {log.target}</span>{' '}
+                      <span className="text-slate-500">oleh {log.actorUsername}</span>
+                    </div>
+                    <span className="text-[11px] text-slate-500">{log.timestamp}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Modal Tambah Akun Guru / Siswa Manual */}
           {newAccModalOpen && (
             <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
               <div className="w-full max-w-md rounded-3xl bg-[#0D132B] border border-cyan-500/40 p-6 space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-black text-white">
-                    Tambah Akun {newAccModalOpen === 'teacher' ? 'Guru' : 'Siswa'} Baru
+                    Tambah Akun {newAccModalOpen === 'teacher' ? 'Guru' : 'Siswa'}
                   </h3>
                   <button
                     onClick={() => setNewAccModalOpen(null)}
@@ -6868,80 +6318,53 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                     e.preventDefault();
                     const cleanUser = formAccUsername.trim().toLowerCase();
                     const cleanEmail = formAccEmail.trim().toLowerCase();
-                    if (!/^[a-z0-9_]{3,30}$/.test(cleanUser)) {
-                      showToast('Username wajib 3-30 karakter huruf kecil, angka, atau underscore.', 'error');
-                      return;
-                    }
-                    if (
-                      managedAccounts.some(
-                        (a) => a.username === cleanUser || a.email === cleanEmail || a.nipNis === formAccNipNis.trim()
-                      )
-                    ) {
-                      showToast('Username, Email, atau NIP/NIS sudah terdaftar!', 'error');
-                      return;
-                    }
-                    const newId = crypto.randomUUID ? crypto.randomUUID() : `acc_${Date.now()}`;
-                    if (sbClient) {
-                      await sbClient.functions.invoke('admin-provision-users', {
-                        body: {
-                          send_invite: true,
-                          users: [
-                            {
-                              full_name: formAccFullName.trim(),
-                              username: cleanUser,
-                              email: cleanEmail,
-                              nip_nis: formAccNipNis.trim(),
-                              class_name: formAccClass,
-                              role: newAccModalOpen
-                            }
-                          ]
-                        }
-                      });
-                      await sbClient.from('profiles').upsert({
-                        id: newId,
-                        username: cleanUser,
-                        role_code: newAccModalOpen,
-                        full_name: formAccFullName.trim(),
-                        email: cleanEmail,
-                        nip_nis: formAccNipNis.trim(),
-                        class_name: newAccModalOpen === 'student' ? formAccClass : null,
-                        is_active: true
-                      });
-                    }
+                    if (!formAccFullName.trim() || !cleanUser || !cleanEmail) return;
+                    const newId = crypto.randomUUID
+                      ? crypto.randomUUID()
+                      : `00000000-0000-4000-8000-${String(Date.now()).slice(-12)}`;
                     const created: ManagedAccount = {
                       id: newId,
                       username: cleanUser,
                       fullName: formAccFullName.trim(),
                       email: cleanEmail,
-                      nipNis: formAccNipNis.trim(),
+                      nipNis: formAccNipNis.trim() || '-',
                       role: newAccModalOpen,
                       className: newAccModalOpen === 'student' ? formAccClass : '',
                       isActive: true,
                       createdAt: new Date().toISOString().slice(0, 10)
                     };
                     setManagedAccounts((prev) => [created, ...prev]);
-                    if (newAccModalOpen === 'student') {
-                      setDbStudentDirectory((prev) => [
-                        { id: created.id, fullName: created.fullName, className: created.className },
-                        ...prev
-                      ]);
+                    if (sbClient) {
+                      const { error: insertProfErr } = await sbClient.from('profiles').upsert({
+                        id: newId,
+                        username: cleanUser,
+                        role_code: newAccModalOpen,
+                        full_name: formAccFullName.trim(),
+                        email: cleanEmail,
+                        nip_nis: formAccNipNis.trim() || null,
+                        class_name: newAccModalOpen === 'student' ? formAccClass : null,
+                        is_active: true
+                      });
+                      if (insertProfErr) {
+                        showToast(
+                          `Tersimpan lokal, namun Supabase menolak (${insertProfErr.message}). Jalankan SQL migration.`,
+                          'error'
+                        );
+                      }
                     }
                     await recordAuditLog('CREATE_USER_ACCOUNT', 'profiles', {
-                      username: created.username,
-                      role: created.role
+                      username: cleanUser,
+                      role: newAccModalOpen
                     });
                     setNewAccModalOpen(null);
-                    showToast(
-                      `Akun ${created.fullName} dibuat via Edge Function & tautan undangan password dikirim ke email.`,
-                      'success'
-                    );
+                    showToast(`Akun ${created.fullName} berhasil ditambahkan!`, 'success');
                   }}
                   className="space-y-3"
                 >
                   <input
                     type="text"
                     required
-                    placeholder="Nama Lengkap & Gelar"
+                    placeholder="Nama Lengkap"
                     value={formAccFullName}
                     onChange={(e) => setFormAccFullName(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs"
@@ -6952,7 +6375,7 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                     placeholder="Username (huruf kecil & underscore)"
                     value={formAccUsername}
                     onChange={(e) => setFormAccUsername(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs font-mono"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs"
                   />
                   <input
                     type="email"
@@ -6964,11 +6387,10 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                   />
                   <input
                     type="text"
-                    required
-                    placeholder={newAccModalOpen === 'teacher' ? 'Nomor Induk Pegawai (NIP)' : 'Nomor Induk Siswa (NIS)'}
+                    placeholder={newAccModalOpen === 'teacher' ? 'NIP' : 'NIS'}
                     value={formAccNipNis}
                     onChange={(e) => setFormAccNipNis(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs font-mono"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#070B19] border border-slate-700 text-white text-xs"
                   />
                   {newAccModalOpen === 'student' && (
                     <select
@@ -6985,9 +6407,62 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                     type="submit"
                     className="w-full py-3 rounded-xl bg-emerald-400 text-slate-950 font-black text-xs cursor-pointer"
                   >
-                    Simpan & Kirim Undangan Password Aman
+                    Simpan Akun
                   </button>
                 </form>
+              </div>
+            </div>
+          )}
+
+          {/* Modal Konfirmasi Hapus Massal Guru / Siswa */}
+          {confirmBulkDeleteRole && (
+            <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="w-full max-w-md rounded-3xl bg-[#0D132B] border border-rose-500/40 p-6 space-y-4">
+                <h3 className="text-lg font-black text-rose-400">
+                  Hapus Semua Data {confirmBulkDeleteRole === 'teacher' ? 'Guru' : 'Siswa'}?
+                </h3>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Tindakan ini akan menghapus seluruh akun{' '}
+                  <strong>{confirmBulkDeleteRole === 'teacher' ? 'Guru' : 'Siswa'}</strong> dari daftar sistem dan database.
+                </p>
+                <div className="flex gap-2 justify-end">
+                  <button
+                    onClick={() => setConfirmBulkDeleteRole(null)}
+                    className="px-4 py-2 rounded-xl bg-white/10 text-xs font-bold text-slate-200 cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    onClick={async () => {
+                      const targets = managedAccounts.filter((a) => a.role === confirmBulkDeleteRole);
+                      if (sbClient) {
+                        for (const t of targets) {
+                          try {
+                            await sbClient.from('profiles').delete().eq('id', t.id);
+                          } catch {
+                            // ignore
+                          }
+                        }
+                      }
+                      setManagedAccounts((prev) => prev.filter((a) => a.role !== confirmBulkDeleteRole));
+                      if (confirmBulkDeleteRole === 'student') {
+                        setDbStudentDirectory([]);
+                      }
+                      await recordAuditLog('BULK_DELETE_USERS', 'profiles', {
+                        role: confirmBulkDeleteRole,
+                        deleted_count: targets.length
+                      });
+                      setConfirmBulkDeleteRole(null);
+                      showToast(
+                        `Seluruh data ${confirmBulkDeleteRole === 'teacher' ? 'Guru' : 'Siswa'} berhasil dihapus.`,
+                        'info'
+                      );
+                    }}
+                    className="px-4 py-2 rounded-xl bg-rose-500 text-white text-xs font-black cursor-pointer"
+                  >
+                    Ya, Hapus Semua
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -6995,36 +6470,39 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
       );
     }
 
+    // DASHBOARD SISWA
     return (
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-6">
-        <div className="p-6 rounded-3xl bg-[#0D132B] border border-cyan-500/30 flex flex-wrap items-center justify-between gap-4">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10 space-y-6">
+        <div className="p-6 rounded-3xl bg-gradient-to-r from-[#0F1736] to-[#1D154A] border border-cyan-500/30 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-cyan-500/15 border border-cyan-400/40 flex items-center justify-center text-3xl">
-              {currentUser.avatar}
-            </div>
+            <div className="text-4xl">{currentUser.avatar}</div>
             <div>
-              <h1 className="text-xl font-black text-white">{currentUser.name}</h1>
+              <h1 className="text-2xl font-black text-white">{currentUser.name}</h1>
               <p className="text-xs text-cyan-300 font-bold">
-                Level {Math.floor(currentUser.xp / 500) + 1} • {currentUser.xp} XP • {currentUser.wins} Kemenangan
+                Total XP: {currentUser.xp} XP • Kemenangan: {currentUser.wins}x
               </p>
             </div>
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setActivePage('catalog')}
-              className="px-4 py-2.5 rounded-xl bg-white/10 text-white font-bold text-xs cursor-pointer"
-            >
-              Self-Play Katalog
-            </button>
-            <button
-              onClick={() => {
-                setLoginTab('student');
-                setActivePage('login');
-              }}
-              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 font-black text-xs cursor-pointer"
-            >
-              Masukkan Kode Room Baru
-            </button>
+          <button
+            onClick={() => {
+              setLoginTab('student');
+              setActivePage('login');
+            }}
+            className="px-5 py-3 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 font-black text-xs cursor-pointer"
+          >
+            + Gabung Room Multiplayer
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          <h2 className="text-lg font-black text-white">Latihan Mandiri (Self-Play Mode)</h2>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {games
+              .filter((g) => g.status === 'published')
+              .slice(0, 6)
+              .map((g) => (
+                <GameCard key={g.id} game={g} />
+              ))}
           </div>
         </div>
       </div>
@@ -7032,153 +6510,104 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
   };
 
   // ==========================================================================
-  // 14. HALAMAN RUANG TUNGGU (MULTIPLAYER LOBBY + SUPABASE PRESENCE)
+  // 14. LOBBY MULTIPLAYER REAL-TIME
   // ==========================================================================
   const MultiplayerLobby = () => {
     if (!activeRoom) {
       return (
-        <div className="max-w-xl mx-auto px-4 py-16 text-center space-y-4">
-          <p className="text-slate-400">Tidak ada room multiplayer yang aktif.</p>
+        <div className="max-w-lg mx-auto px-4 py-16 text-center space-y-4">
+          <h2 className="text-xl font-black text-white">Tidak Ada Room Aktif</h2>
           <button
-            onClick={() => setActivePage(currentUser ? 'dashboard' : 'landing')}
-            className="px-5 py-2.5 rounded-xl bg-cyan-500 text-slate-950 font-bold text-sm"
+            onClick={() => setActivePage('landing')}
+            className="px-5 py-2.5 rounded-xl bg-cyan-400 text-slate-950 font-black text-xs cursor-pointer"
           >
-            Kembali
+            Kembali ke Beranda
           </button>
         </div>
       );
     }
 
-    const playersList = Object.values(activeRoom.players || {}).sort(
-      (a, b) => a.joinedAt - b.joinedAt
-    );
+    const playersList = Object.values(activeRoom.players || {});
     const isHost =
       currentUser &&
       (currentUser.uid === activeRoom.hostUid ||
-        currentUser.role === 'teacher' ||
         currentUser.role === 'admin' ||
         currentUser.role === 'super_admin');
-    const currentPlayer = currentUser ? activeRoom.players?.[currentUser.uid] : null;
-
-    const handleCopyCode = () => {
-      navigator.clipboard?.writeText(activeRoom.code);
-      setLobbyCodeCopied(true);
-      showToast(`Kode room ${activeRoom.code} disalin ke clipboard!`, 'success');
-      setTimeout(() => setLobbyCodeCopied(false), 2000);
-    };
+    const meInRoom = currentUser ? activeRoom.players?.[currentUser.uid] : null;
 
     return (
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-6">
-        <div className="rounded-3xl bg-gradient-to-br from-[#0F1736] via-[#141D47] to-[#1D154A] border border-emerald-500/40 p-6 sm:p-8 shadow-2xl">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 text-xs font-bold">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                SUPABASE REALTIME & PRESENCE ({Math.max(1, onlinePresenceUids.length)} KONEKSI AKTIF)
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-black text-white">{activeRoom.gameTitle}</h1>
-              <p className="text-sm text-slate-300">
-                Host / Guru: <strong className="text-cyan-300">{activeRoom.hostName}</strong> • Tingkat:{' '}
-                <strong className="text-purple-300">{activeRoom.difficulty}</strong> ({activeRoom.durationPerQuestion} detik/soal)
-              </p>
-            </div>
+        <div className="p-6 rounded-3xl bg-[#0D132B] border border-cyan-500/35 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-black">
+              LOBBY MULTIPLAYER • SUPABASE REALTIME
+            </span>
+            <h1 className="text-2xl font-black text-white mt-2">{activeRoom.gameTitle}</h1>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Host: {activeRoom.hostName} • Mode {activeRoom.playMode.toUpperCase()} • {activeRoom.difficulty}
+            </p>
+          </div>
 
-            <div className="p-4 sm:p-5 rounded-2xl bg-[#070B19]/90 border-2 border-emerald-400/50 text-center min-w-[210px]">
-              <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400 block">
-                KODE ROOM
-              </span>
-              <div className="font-mono text-3xl sm:text-4xl font-black tracking-[0.2em] text-emerald-300 my-1">
+          <div className="flex items-center gap-3 bg-[#070B19] px-5 py-3 rounded-2xl border border-cyan-500/40">
+            <div>
+              <div className="text-[10px] font-bold uppercase text-slate-400">Kode Room</div>
+              <div className="font-mono text-2xl font-black tracking-widest text-cyan-300">
                 {activeRoom.code}
               </div>
-              <button
-                onClick={handleCopyCode}
-                className="w-full py-1.5 px-3 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-              >
-                {lobbyCodeCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                {lobbyCodeCopied ? 'Tersalin!' : 'Salin Kode'}
-              </button>
             </div>
+            <button
+              onClick={() => {
+                navigator.clipboard?.writeText(activeRoom.code);
+                setLobbyCodeCopied(true);
+                setTimeout(() => setLobbyCodeCopied(false), 2000);
+                showToast('Kode room disalin!', 'success');
+              }}
+              className="p-2.5 rounded-xl bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 cursor-pointer"
+            >
+              {lobbyCodeCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+            </button>
           </div>
         </div>
 
-        <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/25 p-6 space-y-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-black text-white flex items-center gap-2">
+        <div className="rounded-3xl bg-[#0D132B] border border-indigo-500/25 p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-black text-white flex items-center gap-2">
               <Users className="w-5 h-5 text-cyan-400" />
-              Daftar Pemain Bergabung ({playersList.length} / {activeRoom.maxPlayers})
+              Peserta di Lobby ({playersList.length} / {activeRoom.maxPlayers})
             </h2>
-
-            {isHost && !isSupabaseConnected && (
-              <button
-                onClick={async () => {
-                  const demoNames = ['Andi (XII RPL)', 'Bella (XII TKJ)', 'Candra (XI RPL)', 'Dina (XI TKJ)'];
-                  const pick = demoNames[playersList.length % demoNames.length];
-                  const botId = `demo_${Date.now()}`;
-                  const updated: GameRoom = {
-                    ...activeRoom,
-                    players: {
-                      ...activeRoom.players,
-                      [botId]: {
-                        uid: botId,
-                        name: pick,
-                        teamName: 'Tim Garuda',
-                        avatar: ['🦊', '⚡', '🤖', '🐉'][playersList.length % 4],
-                        score: 0,
-                        correctCount: 0,
-                        isReady: true,
-                        isOnline: true,
-                        answeredQuestions: {},
-                        finishTimeMs: 0,
-                        joinedAt: Date.now()
-                      }
-                    }
-                  };
-                  await saveRoomToBackend(updated);
-                  showToast(`Simulasi siswa "${pick}" bergabung ke lobby.`, 'info');
-                }}
-                className="px-3.5 py-2 rounded-xl bg-purple-600/25 hover:bg-purple-600/40 border border-purple-500/40 text-purple-200 text-xs font-bold cursor-pointer"
-              >
-                + Simulasi Siswa Masuk (Demo)
-              </button>
-            )}
+            <span className="text-xs text-emerald-400 font-bold">
+              {onlinePresenceUids.length > 0 ? `${onlinePresenceUids.length} Online` : 'Menunggu Pemain...'}
+            </span>
           </div>
 
           {playersList.length === 0 ? (
-            <div className="py-12 text-center border border-dashed border-slate-700 rounded-2xl">
-              <p className="text-slate-400 text-sm">
-                Menunggu siswa memasukkan kode <strong className="text-cyan-300">{activeRoom.code}</strong>...
-              </p>
+            <div className="text-center py-10 border border-dashed border-slate-700 rounded-2xl text-sm text-slate-400">
+              Bagikan kode <strong className="text-cyan-300 font-mono">{activeRoom.code}</strong> kepada siswa untuk bergabung.
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
-              {playersList.map((player) => (
+            <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {playersList.map((p) => (
                 <div
-                  key={player.uid}
-                  className="p-3.5 rounded-2xl bg-[#070B19] border border-indigo-500/25 flex items-center justify-between"
+                  key={p.uid}
+                  className="p-3.5 rounded-2xl bg-[#070B19] border border-slate-800 flex items-center justify-between"
                 >
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">{player.avatar}</span>
-                    <div>
-                      <div className="text-sm font-bold text-white flex items-center gap-1.5">
-                        {player.name}
-                        <span className="w-2 h-2 rounded-full bg-emerald-400" title="Online Presence" />
-                      </div>
-                      <div className="text-[11px] text-slate-400">
-                        {activeRoom.playMode === 'kelompok' && player.teamName
-                          ? `${player.teamName} • `
-                          : ''}
-                        {player.uid === currentUser?.uid ? 'Kamu' : 'Peserta'}
-                      </div>
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="text-2xl">{p.avatar}</span>
+                    <div className="truncate">
+                      <div className="text-xs font-bold text-white truncate">{p.name}</div>
+                      {p.teamName && (
+                        <div className="text-[10px] text-purple-300">{p.teamName}</div>
+                      )}
                     </div>
                   </div>
                   <span
-                    className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${
-                      player.isReady
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                        : 'bg-amber-500/15 text-amber-300'
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                      p.isReady
+                        ? 'bg-emerald-500/20 text-emerald-300'
+                        : 'bg-amber-500/20 text-amber-300'
                     }`}
                   >
-                    {player.isReady ? 'SIAP ✓' : 'Menunggu'}
+                    {p.isReady ? 'SIAP' : 'MENUNGGU'}
                   </span>
                 </div>
               ))}
@@ -7195,35 +6624,33 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                   setActivePage(currentUser ? 'dashboard' : 'landing');
                 }
               }}
-              className="px-4 py-2.5 rounded-xl bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 text-xs font-bold"
+              className="px-4 py-2.5 rounded-xl bg-rose-500/15 text-rose-300 border border-rose-500/30 text-xs font-bold cursor-pointer"
             >
-              {isHost ? 'Batalkan & Tutup Room' : 'Keluar Lobby'}
+              {isHost ? 'Tutup Room' : 'Keluar Lobby'}
             </button>
 
-            <div className="flex items-center gap-3">
-              {currentPlayer && (
+            {isHost ? (
+              <button
+                onClick={handleStartMultiplayerGame}
+                className="px-6 py-3 rounded-xl font-black text-sm text-slate-950 bg-gradient-to-r from-emerald-400 to-cyan-500 hover:brightness-110 flex items-center gap-2 cursor-pointer"
+              >
+                <Play className="w-4 h-4 fill-slate-950" />
+                MULAI PERTANDINGAN SEKARANG
+              </button>
+            ) : (
+              meInRoom && (
                 <button
                   onClick={handleToggleReady}
-                  className={`px-6 py-3 rounded-xl font-black text-sm transition-all cursor-pointer ${
-                    currentPlayer.isReady
-                      ? 'bg-emerald-500 text-slate-950'
-                      : 'bg-cyan-500/20 text-cyan-300 border border-cyan-400'
+                  className={`px-6 py-3 rounded-xl font-black text-sm cursor-pointer ${
+                    meInRoom.isReady
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400'
+                      : 'bg-cyan-400 text-slate-950'
                   }`}
                 >
-                  {currentPlayer.isReady ? '✓ STATUS: SIAP BERMAIN' : 'TANDAI SIAP'}
+                  {meInRoom.isReady ? '✓ Kamu Sudah Siap' : 'Tandai Siap Bermain'}
                 </button>
-              )}
-
-              {isHost && (
-                <button
-                  onClick={handleStartMultiplayerGame}
-                  className="px-7 py-3.5 rounded-xl font-black text-sm text-slate-950 bg-gradient-to-r from-emerald-400 via-cyan-400 to-blue-400 hover:brightness-110 shadow-lg shadow-cyan-500/30 flex items-center gap-2 cursor-pointer"
-                >
-                  <Play className="w-5 h-5 fill-slate-950" />
-                  MULAI GAME SEKARANG
-                </button>
-              )}
-            </div>
+              )
+            )}
           </div>
         </div>
       </div>
@@ -7231,41 +6658,43 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
   };
 
   // ==========================================================================
-  // 15. ARENA PERMAINAN LIVE (8 TEMPLATE + EDGE FUNCTION VALIDATION + PREVIEW)
+  // 15. ARENA PERMAINAN LIVE (MENDUKUNG SEMUA 8 TEMPLATE & PREVIEW)
   // ==========================================================================
-  const LiveGameArena: React.FC<{ previewGameOverride?: GameCatalogItem; onClosePreview?: () => void }> = ({
-    previewGameOverride,
-    onClosePreview
-  }) => {
-    const activeGameDef: GameCatalogItem = useMemo(() => {
-      if (previewGameOverride) return previewGameOverride;
-      return games.find((g) => g.id === activeRoom?.gameId) || INITIAL_GAMES[0];
-    }, [previewGameOverride, activeRoom?.gameId, games]);
+  const LiveGameArena: React.FC<{
+    previewGameOverride?: GameCatalogItem;
+    onClosePreview?: () => void;
+  }> = ({ previewGameOverride, onClosePreview }) => {
+    const activeGameDef =
+      previewGameOverride ||
+      games.find((g) => g.id === activeRoom?.gameId) ||
+      INITIAL_GAMES[0];
 
-    const effectiveRoom: GameRoom = useMemo(() => {
-      if (previewGameOverride) {
-        return {
-          id: 'preview_room',
+    const [previewIdx, setPreviewIdx] = useState(0);
+    const [previewScore, setPreviewScore] = useState(0);
+
+    const roomObj: GameRoom = previewGameOverride
+      ? {
+          id: 'preview-room',
           code: 'PREVIEW',
           gameId: previewGameOverride.id,
-          gameTitle: `${previewGameOverride.title} (Mode Preview Guru)`,
+          gameTitle: previewGameOverride.title,
           templateType: previewGameOverride.templateType,
-          hostUid: 'preview_host',
-          hostName: currentUser?.name || 'Guru Preview',
+          hostUid: 'preview',
+          hostName: 'Preview Mode',
           playMode: 'individu',
           maxPlayers: 1,
-          durationPerQuestion: previewGameOverride.multiplayerConfig.durationPerQuestion || 25,
+          durationPerQuestion: 30,
           difficulty: previewGameOverride.difficulty,
           status: 'playing',
-          currentQuestionIndex: 0,
+          currentQuestionIndex: previewIdx,
           questionStartTime: Date.now(),
           showAnswerReveal: false,
           players: {
-            preview_player: {
-              uid: 'preview_player',
-              name: currentUser?.name || 'Guru Uji Coba',
-              avatar: currentUser?.avatar || '👨‍🏫',
-              score: 0,
+            preview: {
+              uid: 'preview',
+              name: 'Guru (Preview)',
+              avatar: '👨‍🏫',
+              score: previewScore,
               correctCount: 0,
               isReady: true,
               answeredQuestions: {},
@@ -7274,255 +6703,205 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
             }
           },
           createdAt: Date.now()
-        };
-      }
-      return activeRoom!;
-    }, [previewGameOverride, activeRoom, currentUser]);
+        }
+      : activeRoom!;
 
-    const [previewRoomState, setPreviewRoomState] = useState<GameRoom>(effectiveRoom);
-    const roomObj = previewGameOverride ? previewRoomState : activeRoom!;
-    const playerUid = previewGameOverride ? 'preview_player' : currentUser?.uid || '';
-
-    const questionsList =
-      activeGameDef.questions && activeGameDef.questions.length > 0
-        ? activeGameDef.questions
-        : INITIAL_GAMES[0].questions;
-
-    const totalQuestions = questionsList.length;
-    const qIndex = Math.min(roomObj.currentQuestionIndex, totalQuestions - 1);
-    const currentQ = questionsList[qIndex];
-
-    const [timeLeft, setTimeLeft] = useState<number>(currentQ.durationSec || roomObj.durationPerQuestion || 20);
-    const [selectedOption, setSelectedOption] = useState<number | null>(null);
-    const [selectedBoolChoice, setSelectedBoolChoice] = useState<boolean | null>(null);
-    const [wordGuessInput, setWordGuessInput] = useState<string>('');
-    const [scrambledChosen, setScrambledChosen] = useState<string[]>([]);
-    const [selectedLeftMatch, setSelectedLeftMatch] = useState<string | null>(null);
-    const [matchedPairIds, setMatchedPairIds] = useState<string[]>([]);
-    const [dragAssignments, setDragAssignments] = useState<Record<string, string>>({});
-    const [selectedDragItem, setSelectedDragItem] = useState<string | null>(null);
-    const [flippedCards, setFlippedCards] = useState<number[]>([]);
-    const [matchedMemoryIds, setMatchedMemoryIds] = useState<string[]>([]);
-    const [memoryAttempts, setMemoryAttempts] = useState<number>(0);
-    const [questionLocked, setQuestionLocked] = useState<boolean>(false);
-    const [feedbackMsg, setFeedbackMsg] = useState<{ correct: boolean; text: string } | null>(null);
+    const totalQuestions = Math.max(1, activeGameDef.questions.length);
+    const qIndex = Math.min(roomObj.currentQuestionIndex || 0, totalQuestions - 1);
+    const currentQ = activeGameDef.questions[qIndex] || activeGameDef.questions[0];
 
     const isHost =
       !previewGameOverride &&
       !isPracticeMode &&
       currentUser &&
       (currentUser.uid === roomObj.hostUid ||
-        currentUser.role === 'teacher' ||
         currentUser.role === 'admin' ||
         currentUser.role === 'super_admin');
 
-    const myPlayerData = roomObj.players?.[playerUid];
-    const hasAnsweredThisQuestion = Boolean(myPlayerData?.answeredQuestions?.[`q_${qIndex}`]);
+    const myPlayerData = currentUser ? roomObj.players?.[currentUser.uid] : null;
+    const hasAnsweredThisQuestion = Boolean(myPlayerData?.answeredQuestions?.[currentQ.id]);
 
-    const memoryDeck = useMemo(() => {
-      if (activeGameDef.templateType !== 'memory-match' || !currentQ.pairs) return [];
-      const cards: { idx: number; pairId: string; text: string }[] = [];
-      currentQ.pairs.forEach((p, i) => {
-        cards.push({ idx: i * 2, pairId: p.id, text: p.left });
-        cards.push({ idx: i * 2 + 1, pairId: p.id, text: p.right });
-      });
-      return cards.sort((a, b) => a.text.localeCompare(b.text));
-    }, [activeGameDef.templateType, currentQ]);
+    const [timeLeft, setTimeLeft] = useState<number>(currentQ.durationSec || 20);
+    const [questionLocked, setQuestionLocked] = useState<boolean>(false);
+    const [feedbackMsg, setFeedbackMsg] = useState<{ correct: boolean; text: string } | null>(null);
+
+    // State per template
+    const [selectedOption, setSelectedOption] = useState<number | null>(null);
+    const [wordGuessInput, setWordGuessInput] = useState('');
+    const [selectedLeftMatch, setSelectedLeftMatch] = useState<string | null>(null);
+    const [matchedPairIds, setMatchedPairIds] = useState<string[]>([]);
+    const [selectedDragItem, setSelectedDragItem] = useState<string | null>(null);
+    const [dragAssignments, setDragAssignments] = useState<Record<string, string>>({});
+    const [scrambledChosen, setScrambledChosen] = useState<string[]>([]);
+    const [flippedCards, setFlippedCards] = useState<number[]>([]);
+    const [matchedMemoryIds, setMatchedMemoryIds] = useState<string[]>([]);
+    const [memoryAttempts, setMemoryAttempts] = useState(0);
+    const [selectedBoolChoice, setSelectedBoolChoice] = useState<boolean | null>(null);
 
     const scrambledLetters = useMemo(() => {
       const word = (currentQ.answerWord || 'KOMPUTER').toUpperCase();
-      return word.split('').reverse();
-    }, [currentQ]);
+      return word.split('').sort(() => 0.5 - Math.random());
+    }, [currentQ.id, currentQ.answerWord]);
 
-    // Sinkronisasi timer berdasarkan server timestamp (questionStartTime)
+    const memoryDeck = useMemo(() => {
+      const pairs = currentQ.pairs || [];
+      const raw: { idx: number; pairId: string; text: string }[] = [];
+      pairs.forEach((p, idx) => {
+        raw.push({ idx: idx * 2, pairId: p.id, text: p.left });
+        raw.push({ idx: idx * 2 + 1, pairId: p.id, text: p.right });
+      });
+      return raw.sort(() => 0.5 - Math.random());
+    }, [currentQ.id, currentQ.pairs]);
+
     useEffect(() => {
+      setTimeLeft(currentQ.durationSec || roomObj.durationPerQuestion || 20);
+      setQuestionLocked(false);
+      setFeedbackMsg(null);
       setSelectedOption(null);
-      setSelectedBoolChoice(null);
       setWordGuessInput('');
-      setScrambledChosen([]);
       setSelectedLeftMatch(null);
       setMatchedPairIds([]);
-      setDragAssignments({});
       setSelectedDragItem(null);
+      setDragAssignments({});
+      setScrambledChosen([]);
       setFlippedCards([]);
       setMatchedMemoryIds([]);
       setMemoryAttempts(0);
-      setQuestionLocked(false);
-      setFeedbackMsg(null);
-
-      const dur = currentQ.durationSec || roomObj.durationPerQuestion || 20;
-      const elapsed = Math.floor((Date.now() - (roomObj.questionStartTime || Date.now())) / 1000);
-      setTimeLeft(Math.max(1, dur - Math.max(0, elapsed)));
-    }, [qIndex, roomObj.id, roomObj.questionStartTime]);
+      setSelectedBoolChoice(null);
+    }, [qIndex, currentQ.id]);
 
     useEffect(() => {
-      if (roomObj.status !== 'playing') return;
-      const interval = setInterval(() => {
-        setTimeLeft((prev) => {
-          if (prev <= 1) {
-            setQuestionLocked(true);
-            return 0;
-          }
-          return prev - 1;
-        });
+      if (roomObj.status === 'paused') return;
+      const timer = setInterval(() => {
+        setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
       }, 1000);
-      return () => clearInterval(interval);
+      return () => clearInterval(timer);
     }, [qIndex, roomObj.status]);
 
     const persistRoomUpdate = async (updated: GameRoom) => {
-      if (previewGameOverride) {
-        setPreviewRoomState(updated);
-      } else {
-        await saveRoomToBackend(updated);
-      }
+      if (previewGameOverride) return;
+      await saveRoomToBackend(updated);
     };
 
     const submitAnswer = async (
       isCorrect: boolean,
-      pointsEarned: number,
-      detailText: string,
-      rawPayload?: any
+      pointsAwarded: number,
+      feedbackText: string,
+      payload: Record<string, any>
     ) => {
-      if (hasAnsweredThisQuestion || questionLocked) return;
       setQuestionLocked(true);
-      setFeedbackMsg({ correct: isCorrect, text: detailText });
+      setFeedbackMsg({ correct: isCorrect, text: feedbackText });
 
-      // Panggil Supabase Edge Function 'submit-answer' untuk validasi server-side
-      if (sbClient && !previewGameOverride && !isPracticeMode) {
-        try {
-          await sbClient.functions.invoke('submit-answer', {
-            body: {
-              room_id: roomObj.id,
-              question_id: currentQ.id,
-              player_id: playerUid,
-              submitted_payload: rawPayload ?? { isCorrect }
-            }
-          });
-        } catch {
-          // Fallback broadcast state
-        }
+      if (previewGameOverride) {
+        if (isCorrect) setPreviewScore((s) => s + pointsAwarded);
+        return;
       }
 
-      if (!myPlayerData) return;
+      if (!currentUser || !activeRoom) return;
+      const existingPlayer = activeRoom.players?.[currentUser.uid];
+      if (!existingPlayer) return;
 
       const updatedPlayer: PlayerInRoom = {
-        ...myPlayerData,
-        score: myPlayerData.score + pointsEarned,
-        correctCount: myPlayerData.correctCount + (isCorrect ? 1 : 0),
+        ...existingPlayer,
+        score: existingPlayer.score + (isCorrect ? pointsAwarded : 0),
+        correctCount: existingPlayer.correctCount + (isCorrect ? 1 : 0),
         answeredQuestions: {
-          ...(myPlayerData.answeredQuestions || {}),
-          [`q_${qIndex}`]: true
-        },
-        finishTimeMs: Date.now() - roomObj.createdAt
-      };
-
-      const updatedPlayers = {
-        ...roomObj.players,
-        [playerUid]: updatedPlayer
-      };
-
-      Object.keys(updatedPlayers).forEach((pid) => {
-        if (pid.startsWith('demo_') || pid.startsWith('bot-')) {
-          const botCorrect = Math.random() > 0.35;
-          updatedPlayers[pid] = {
-            ...updatedPlayers[pid],
-            score: updatedPlayers[pid].score + (botCorrect ? 140 : 0),
-            correctCount: updatedPlayers[pid].correctCount + (botCorrect ? 1 : 0),
-            answeredQuestions: {
-              ...updatedPlayers[pid].answeredQuestions,
-              [`q_${qIndex}`]: true
-            }
-          };
+          ...existingPlayer.answeredQuestions,
+          [currentQ.id]: true
         }
-      });
+      };
 
-      await persistRoomUpdate({
-        ...roomObj,
-        players: updatedPlayers
-      });
+      const updatedRoom: GameRoom = {
+        ...activeRoom,
+        players: {
+          ...activeRoom.players,
+          [currentUser.uid]: updatedPlayer
+        }
+      };
+      await saveRoomToBackend(updatedRoom);
+
+      if (sbClient && !isPracticeMode) {
+        try {
+          await sbClient.from('player_answers').insert({
+            room_id: activeRoom.id,
+            question_id: currentQ.id,
+            player_id: currentUser.uid,
+            submitted_payload: payload,
+            is_correct: isCorrect,
+            points_awarded: isCorrect ? pointsAwarded : 0,
+            response_time_ms: Math.max(500, ((currentQ.durationSec || 20) - timeLeft) * 1000)
+          });
+        } catch {
+          // ignore
+        }
+      }
     };
 
     const handleNextStep = async () => {
-      if (qIndex + 1 < totalQuestions) {
-        if (sbClient && !previewGameOverride && !isPracticeMode) {
-          try {
-            await sbClient.functions.invoke('next-question', {
-              body: { room_id: roomObj.id, next_index: qIndex + 1 }
-            });
-          } catch {
-            // fallback
-          }
+      if (previewGameOverride) {
+        if (previewIdx + 1 < totalQuestions) {
+          setPreviewIdx((i) => i + 1);
+        } else if (onClosePreview) {
+          onClosePreview();
         }
-        await persistRoomUpdate({
-          ...roomObj,
+        return;
+      }
+
+      if (!activeRoom) return;
+      if (qIndex + 1 < totalQuestions) {
+        await saveRoomToBackend({
+          ...activeRoom,
           currentQuestionIndex: qIndex + 1,
-          questionStartTime: Date.now(),
-          showAnswerReveal: false
+          questionStartTime: Date.now()
         });
       } else {
-        if (previewGameOverride) {
-          showToast('Preview selesai! Semua soal berjalan dengan baik.', 'success');
-          onClosePreview?.();
-          return;
-        }
-        if (sbClient && !isPracticeMode) {
-          try {
-            await sbClient.functions.invoke('finish-game', {
-              body: { room_id: roomObj.id }
-            });
-          } catch {
-            // fallback
-          }
-        }
-        const finishedRoom: GameRoom = { ...roomObj, status: 'finished' };
+        const finishedRoom: GameRoom = { ...activeRoom, status: 'finished' };
         await saveRoomToBackend(finishedRoom);
 
-        if (myPlayerData && currentUser) {
-          const gainedXp = Math.max(50, Math.round(myPlayerData.score * 0.4));
-          const updatedXp = (currentUser.xp || 0) + gainedXp;
-          const updatedWins = (currentUser.wins || 0) + 1;
-          setCurrentUser((prev) =>
-            prev ? { ...prev, xp: updatedXp, wins: updatedWins } : null
-          );
-          const newEntry: LeaderboardEntry = {
-            id: `lb_${currentUser.uid}_${Date.now()}`,
-            name: currentUser.name,
-            role: currentUser.role,
-            avatar: currentUser.avatar,
-            totalScore: myPlayerData.score,
-            xp: updatedXp,
-            wins: updatedWins,
-            period: 'harian'
-          };
-          setLeaderboard((prev) => [newEntry, ...prev]);
+        // Simpan hasil akhir ke quizResults & Supabase game_results
+        const ranked = Object.values(finishedRoom.players || {}).sort((a, b) => b.score - a.score);
+        const today = new Date().toISOString().slice(0, 10);
+        const newRecords: QuizResultRecord[] = ranked.map((p, idx) => ({
+          id: crypto.randomUUID ? crypto.randomUUID() : `res_${Date.now()}_${idx}`,
+          studentName: p.name,
+          username: p.name.toLowerCase().replace(/[^a-z0-9]/g, '_'),
+          className: p.name.match(/\(([^)]+)\)/)?.[1] || '-',
+          teacherName: finishedRoom.hostName,
+          gameTitle: finishedRoom.gameTitle,
+          playedDate: today,
+          score: p.score,
+          correctCount: p.correctCount,
+          wrongCount: Math.max(0, totalQuestions - p.correctCount),
+          durationSec: totalQuestions * finishedRoom.durationPerQuestion,
+          rank: idx + 1,
+          answersDetail: `${p.correctCount}/${totalQuestions} Benar`
+        }));
 
-          if (sbClient) {
-            try {
+        setQuizResults((prev) => [...newRecords, ...prev]);
+
+        if (sbClient && !isPracticeMode) {
+          try {
+            for (let i = 0; i < ranked.length; i++) {
+              const p = ranked[i];
               await sbClient.from('game_results').insert({
-                room_id: roomObj.id,
-                game_id: roomObj.gameId,
-                teacher_name: roomObj.hostName,
-                game_title: roomObj.gameTitle,
-                player_id: currentUser.uid,
-                player_name: currentUser.name,
-                final_rank: 1,
-                total_score: myPlayerData.score,
-                correct_count: myPlayerData.correctCount,
-                wrong_count: Math.max(0, totalQuestions - myPlayerData.correctCount),
-                duration_seconds: Math.max(1, Math.round((Date.now() - roomObj.createdAt) / 1000)),
-                xp_earned: gainedXp
+                room_id: finishedRoom.id,
+                game_id: finishedRoom.gameId,
+                teacher_name: finishedRoom.hostName,
+                game_title: finishedRoom.gameTitle,
+                player_id: p.uid,
+                player_name: p.name,
+                class_name: p.name.match(/\(([^)]+)\)/)?.[1] || null,
+                final_rank: i + 1,
+                total_score: p.score,
+                correct_count: p.correctCount,
+                wrong_count: Math.max(0, totalQuestions - p.correctCount),
+                duration_seconds: totalQuestions * finishedRoom.durationPerQuestion,
+                answers_summary: [`${p.correctCount}/${totalQuestions} Benar`],
+                xp_earned: Math.max(40, Math.round(p.score * 0.4))
               });
-              await sbClient.from('leaderboard').upsert({
-                player_id: currentUser.uid,
-                player_name: currentUser.name,
-                avatar: currentUser.avatar,
-                total_score: myPlayerData.score,
-                total_xp: updatedXp,
-                wins: updatedWins
-              });
-            } catch {
-              // ignore if foreign key room/game is demo-only
             }
+          } catch {
+            // ignore
           }
         }
         setActivePage('results');
@@ -8265,36 +7644,41 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <span className="text-xs font-bold uppercase tracking-widest text-amber-400">
-              Hall of Fame SMK
+              Peringkat Juara Sekolah
             </span>
-            <h1 className="text-3xl font-black text-white mt-1">Leaderboard Arena</h1>
+            <h1 className="text-3xl font-black text-white mt-1">Leaderboard Global</h1>
+            <p className="text-xs sm:text-sm text-slate-400 mt-1">
+              Akumulasi skor dan XP terbaik dari seluruh sesi Edu Game Arena.
+            </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin') && leaderboard.length > 0 && (
-              <button
-                onClick={async () => {
-                  if (sbClient) {
-                    for (const item of leaderboard) {
-                      try {
-                        await sbClient.from('leaderboard').delete().eq('id', item.id);
-                      } catch {
-                        // ignore
+          <div className="flex flex-wrap items-center gap-2.5">
+            {currentUser &&
+              (currentUser.role === 'admin' || currentUser.role === 'super_admin') &&
+              leaderboard.length > 0 && (
+                <button
+                  onClick={async () => {
+                    if (sbClient) {
+                      for (const entry of leaderboard) {
+                        try {
+                          await sbClient.from('leaderboard').delete().eq('id', entry.id);
+                        } catch {
+                          // ignore
+                        }
                       }
                     }
-                  }
-                  setLeaderboard([]);
-                  await recordAuditLog('RESET_LEADERBOARD', 'leaderboard', {
-                    cleared_count: leaderboard.length
-                  });
-                  showToast('Seluruh skor pada Leaderboard berhasil direset.', 'info');
-                }}
-                className="px-3.5 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                Reset Semua Skor
-              </button>
-            )}
+                    setLeaderboard([]);
+                    await recordAuditLog('RESET_LEADERBOARD', 'leaderboard', {
+                      cleared_count: leaderboard.length
+                    });
+                    showToast('Seluruh skor pada Leaderboard berhasil direset.', 'info');
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Reset Semua Skor
+                </button>
+              )}
 
             <div className="flex p-1 rounded-xl bg-[#0D132B] border border-indigo-500/30">
               {(['harian', 'mingguan', 'keseluruhan'] as const).map((period) => (
