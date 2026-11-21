@@ -1916,6 +1916,62 @@ function EduGameArenaMain() {
           );
         }
 
+        const { data: dbCategories } = await sbClient
+          .from('game_categories')
+          .select('name')
+          .order('name', { ascending: true });
+        if (dbCategories && dbCategories.length > 0) {
+          setLessonCategories(dbCategories.map((c: any) => c.name).filter(Boolean));
+        }
+
+        const { data: dbRooms } = await sbClient
+          .from('game_rooms')
+          .select('*, games(title, template_code), room_players(*)')
+          .order('created_at', { ascending: false })
+          .limit(30);
+        if (dbRooms && dbRooms.length > 0) {
+          const mappedRooms: GameRoom[] = dbRooms.map((rm: any) => {
+            const playersMap: Record<string, PlayerInRoom> = {};
+            (rm.room_players || []).forEach((rp: any) => {
+              playersMap[rp.player_id] = {
+                uid: rp.player_id,
+                name: rp.display_name,
+                teamName: rp.team_name,
+                avatar: rp.avatar || '🎮',
+                score: rp.score || 0,
+                correctCount: rp.correct_count || 0,
+                isReady: Boolean(rp.is_ready),
+                isOnline: Boolean(rp.is_online),
+                answeredQuestions: {},
+                finishTimeMs: 0,
+                joinedAt: new Date(rp.joined_at || Date.now()).getTime()
+              };
+            });
+            return {
+              id: rm.id,
+              code: rm.room_code,
+              gameId: rm.game_id,
+              gameTitle: rm.games?.title || 'Arena Multiplayer SMK',
+              templateType: (rm.games?.template_code || 'quiz-battle') as GameTemplateType,
+              hostUid: rm.host_id,
+              hostName: rm.host_name || 'Guru',
+              playMode: (rm.play_mode || 'individu') as 'individu' | 'kelompok',
+              maxPlayers: Number(rm.max_players) || 40,
+              durationPerQuestion: Number(rm.duration_per_question) || 20,
+              difficulty: (rm.difficulty || 'Sedang') as 'Mudah' | 'Sedang' | 'Sulit',
+              status: (rm.status || 'waiting') as any,
+              currentQuestionIndex: Number(rm.current_question_index) || 0,
+              questionStartTime: rm.question_started_at
+                ? new Date(rm.question_started_at).getTime()
+                : Date.now(),
+              showAnswerReveal: false,
+              players: playersMap,
+              createdAt: new Date(rm.created_at || Date.now()).getTime()
+            };
+          });
+          setAllRooms(mappedRooms);
+        }
+
         const { data: dbSite } = await sbClient
           .from('site_settings')
           .select('config')
@@ -1964,7 +2020,18 @@ function EduGameArenaMain() {
 
     fetchInitialSupabaseData();
 
-    // Realtime Subscription untuk tabel games, game_rooms & site_settings
+    // Sinkronisasi berkala setiap 8 detik & saat tab kembali aktif di HP/laptop mana pun
+    const syncInterval = setInterval(() => {
+      fetchInitialSupabaseData();
+    }, 8000);
+    const handleWindowFocus = () => {
+      fetchInitialSupabaseData();
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', handleWindowFocus);
+    }
+
+    // Realtime Subscription untuk tabel site_settings, profiles, classes, games, game_rooms & room_players
     const globalChannel = sbClient
       .channel('edu-game-arena-global')
       .on(
@@ -1982,6 +2049,41 @@ function EduGameArenaMain() {
               // ignore
             }
           }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'profiles' },
+        () => {
+          fetchInitialSupabaseData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'classes' },
+        () => {
+          fetchInitialSupabaseData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'games' },
+        () => {
+          fetchInitialSupabaseData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'game_results' },
+        () => {
+          fetchInitialSupabaseData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'leaderboard' },
+        () => {
+          fetchInitialSupabaseData();
         }
       )
       .on(
@@ -2036,6 +2138,10 @@ function EduGameArenaMain() {
       .subscribe();
 
     return () => {
+      clearInterval(syncInterval);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('focus', handleWindowFocus);
+      }
       authListener?.subscription?.unsubscribe();
       sbClient.removeChannel(globalChannel);
     };
@@ -2167,11 +2273,15 @@ function EduGameArenaMain() {
       return exists ? prev.map((g) => (g.id === gameItem.id ? gameItem : g)) : [gameItem, ...prev];
     });
 
-    if (sbClient && supabaseUser) {
+    if (sbClient) {
+      const effectiveOwnerId =
+        supabaseUser?.id ||
+        currentUser?.uid ||
+        '00000000-0000-4000-8000-000000000001';
       try {
         await sbClient.from('games').upsert({
           id: gameItem.id,
-          owner_id: supabaseUser.id,
+          owner_id: effectiveOwnerId,
           creator_name: gameItem.creatorName,
           template_code: gameItem.templateType,
           category_name: gameItem.category,
@@ -2256,6 +2366,11 @@ function EduGameArenaMain() {
     });
 
     if (sbClient && !isPracticeMode) {
+      const effectiveHostId =
+        supabaseUser?.id ||
+        currentUser?.uid ||
+        room.hostUid ||
+        '00000000-0000-4000-8000-000000000001';
       try {
         // Broadcast event real-time ke seluruh peserta room
         await sbClient.channel(`room:${room.code}`).send({
@@ -2264,20 +2379,34 @@ function EduGameArenaMain() {
           payload: { room }
         });
 
-        if (supabaseUser) {
-          await sbClient.from('game_rooms').upsert({
-            id: room.id,
-            room_code: room.code,
-            game_id: room.gameId,
-            host_id: supabaseUser.id,
-            host_name: room.hostName,
-            play_mode: room.playMode,
-            max_players: room.maxPlayers,
-            duration_per_question: room.durationPerQuestion,
-            difficulty: room.difficulty,
-            status: room.status,
-            current_question_index: room.currentQuestionIndex,
-            question_started_at: new Date(room.questionStartTime).toISOString()
+        await sbClient.from('game_rooms').upsert({
+          id: room.id,
+          room_code: room.code,
+          game_id: room.gameId,
+          host_id: effectiveHostId,
+          host_name: room.hostName,
+          play_mode: room.playMode,
+          max_players: room.maxPlayers,
+          duration_per_question: room.durationPerQuestion,
+          difficulty: room.difficulty,
+          status: room.status,
+          current_question_index: room.currentQuestionIndex,
+          question_started_at: new Date(room.questionStartTime).toISOString()
+        });
+
+        // Sinkronkan seluruh pemain room ke tabel room_players agar terbaca di layar guru & siswa lain
+        const playersEntries = Object.values(room.players || {});
+        for (const p of playersEntries) {
+          await sbClient.from('room_players').upsert({
+            room_id: room.id,
+            player_id: p.uid,
+            display_name: p.name,
+            team_name: p.teamName || null,
+            avatar: p.avatar || '🎮',
+            score: p.score || 0,
+            correct_count: p.correctCount || 0,
+            is_ready: Boolean(p.isReady),
+            is_online: true
           });
         }
       } catch (err) {
@@ -7350,8 +7479,10 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
 
         if (myPlayerData && currentUser) {
           const gainedXp = Math.max(50, Math.round(myPlayerData.score * 0.4));
+          const updatedXp = (currentUser.xp || 0) + gainedXp;
+          const updatedWins = (currentUser.wins || 0) + 1;
           setCurrentUser((prev) =>
-            prev ? { ...prev, xp: prev.xp + gainedXp, wins: prev.wins + 1 } : null
+            prev ? { ...prev, xp: updatedXp, wins: updatedWins } : null
           );
           const newEntry: LeaderboardEntry = {
             id: `lb_${currentUser.uid}_${Date.now()}`,
@@ -7359,11 +7490,40 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
             role: currentUser.role,
             avatar: currentUser.avatar,
             totalScore: myPlayerData.score,
-            xp: (currentUser.xp || 0) + gainedXp,
-            wins: (currentUser.wins || 0) + 1,
+            xp: updatedXp,
+            wins: updatedWins,
             period: 'harian'
           };
           setLeaderboard((prev) => [newEntry, ...prev]);
+
+          if (sbClient) {
+            try {
+              await sbClient.from('game_results').insert({
+                room_id: roomObj.id,
+                game_id: roomObj.gameId,
+                teacher_name: roomObj.hostName,
+                game_title: roomObj.gameTitle,
+                player_id: currentUser.uid,
+                player_name: currentUser.name,
+                final_rank: 1,
+                total_score: myPlayerData.score,
+                correct_count: myPlayerData.correctCount,
+                wrong_count: Math.max(0, totalQuestions - myPlayerData.correctCount),
+                duration_seconds: Math.max(1, Math.round((Date.now() - roomObj.createdAt) / 1000)),
+                xp_earned: gainedXp
+              });
+              await sbClient.from('leaderboard').upsert({
+                player_id: currentUser.uid,
+                player_name: currentUser.name,
+                avatar: currentUser.avatar,
+                total_score: myPlayerData.score,
+                total_xp: updatedXp,
+                wins: updatedWins
+              });
+            } catch {
+              // ignore if foreign key room/game is demo-only
+            }
+          }
         }
         setActivePage('results');
       }
