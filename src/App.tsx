@@ -1796,18 +1796,123 @@ function EduGameArenaMain() {
 
         const { data: dbStudents } = await sbClient
           .from('profiles')
-          .select('id, full_name, class_name, role_code, is_active')
-          .eq('role_code', 'student')
+          .select('id, username, full_name, email, nip_nis, class_name, role_code, is_active, created_at')
           .order('full_name', { ascending: true });
         if (dbStudents && dbStudents.length > 0) {
           setDbStudentDirectory(
             dbStudents
-              .filter((s: any) => s.is_active !== false && s.full_name)
+              .filter((s: any) => s.role_code === 'student' && s.is_active !== false && s.full_name)
               .map((s: any) => ({
                 id: s.id,
                 fullName: s.full_name,
                 className: s.class_name || ''
               }))
+          );
+          const mappedAccounts: ManagedAccount[] = dbStudents
+            .filter((p: any) => p.role_code === 'teacher' || p.role_code === 'student')
+            .map((p: any) => ({
+              id: p.id,
+              username: p.username || (p.email ? p.email.split('@')[0] : 'user'),
+              fullName: p.full_name || 'Pengguna',
+              email: p.email || '',
+              nipNis: p.nip_nis || '-',
+              role: p.role_code === 'teacher' ? 'teacher' : 'student',
+              className: p.class_name || '',
+              isActive: p.is_active !== false,
+              createdAt: (p.created_at || new Date().toISOString()).slice(0, 10)
+            }));
+          if (mappedAccounts.length > 0) {
+            setManagedAccounts(mappedAccounts);
+          }
+        }
+
+        const { data: dbGames } = await sbClient
+          .from('games')
+          .select('*, game_questions(*, game_answers(*))')
+          .order('created_at', { ascending: false });
+        if (dbGames && dbGames.length > 0) {
+          const mappedGames: GameCatalogItem[] = dbGames.map((g: any) => {
+            const qs: CustomGameQuestion[] = (g.game_questions || [])
+              .sort((a: any, b: any) => (a.order_index || 0) - (b.order_index || 0))
+              .map((q: any) => {
+                const ansRow = Array.isArray(q.game_answers) ? q.game_answers[0] : q.game_answers;
+                const payload = q.content_payload || {};
+                const correctPayload = ansRow?.correct_payload || {};
+                return {
+                  id: q.id,
+                  prompt: q.prompt,
+                  imageUrl: q.image_url || undefined,
+                  points: Number(q.points) || 100,
+                  durationSec: Number(q.duration_sec) || 20,
+                  options: payload.options,
+                  correctIndex: correctPayload.correctIndex,
+                  explanation: ansRow?.explanation || '',
+                  answerWord: correctPayload.answerWord,
+                  clue: payload.clue,
+                  maxAttempts: payload.maxAttempts,
+                  displayMode: payload.displayMode,
+                  pairs: payload.pairs,
+                  categories: payload.categories,
+                  dragItems: payload.dragItems,
+                  isTrueStatement: correctPayload.isTrueStatement
+                };
+              });
+            return {
+              id: g.id,
+              ownerId: g.owner_id,
+              creatorName: g.creator_name || 'Guru',
+              title: g.title,
+              templateType: (g.template_code || 'quiz-battle') as GameTemplateType,
+              category: g.category_name || 'Game Buatan Guru',
+              subject: g.subject_name || 'Produktif SMK',
+              gradeLevel: g.grade_level || 'Kelas XI',
+              description: g.description || '',
+              thumbnailUrl: g.thumbnail_url || undefined,
+              minPlayers: 1,
+              maxPlayers: 40,
+              difficulty: (g.difficulty || 'Sedang') as 'Mudah' | 'Sedang' | 'Sulit',
+              status: (g.status || 'published') as 'published' | 'draft' | 'disabled',
+              playable: true,
+              accentColor: 'from-cyan-500 to-blue-600',
+              badge: 'SUPABASE • LIVE',
+              iconType: 'swords',
+              playsCount: Number(g.plays_count) || 0,
+              rating: Number(g.rating) || 5.0,
+              questions: qs.length > 0 ? qs : INITIAL_GAMES[0].questions,
+              multiplayerConfig: { ...DEFAULT_MULTIPLAYER_CONFIG, ...(g.multiplayer_config || {}) },
+              createdAt: new Date(g.created_at || Date.now()).getTime()
+            };
+          });
+          setGames((prev) => {
+            const dbIds = new Set(mappedGames.map((m) => m.id));
+            return [...mappedGames, ...prev.filter((p) => !dbIds.has(p.id))];
+          });
+        }
+
+        const { data: dbResults } = await sbClient
+          .from('game_results')
+          .select('*')
+          .order('played_at', { ascending: false })
+          .limit(100);
+        if (dbResults && dbResults.length > 0) {
+          setQuizResults(
+            dbResults.map((r: any) => ({
+              id: r.id,
+              studentName: r.player_name,
+              username: (r.player_name || 'siswa').toLowerCase().replace(/\s+/g, '_'),
+              className: r.class_name || '-',
+              teacherName: r.teacher_name || 'Guru',
+              gameTitle: r.game_title,
+              playedDate: (r.played_at || new Date().toISOString()).slice(0, 10),
+              score: Number(r.total_score) || 0,
+              correctCount: Number(r.correct_count) || 0,
+              wrongCount: Number(r.wrong_count) || 0,
+              durationSec: Number(r.duration_seconds) || 0,
+              rank: Number(r.final_rank) || 1,
+              answersDetail: Array.isArray(r.answers_summary)
+                ? r.answers_summary.join(', ')
+                : String(r.answers_summary || '-')
+            }))
           );
         }
 
@@ -4999,6 +5104,22 @@ ${emptyTrs}
                 }))
               }
             });
+
+            // Simpan langsung ke tabel public.profiles agar otomatis muncul di seluruh HP & perangkat lain
+            const profileRows = validItems.map((v, i) => ({
+              id: crypto.randomUUID ? crypto.randomUUID() : `00000000-0000-4000-8000-${String(Date.now() + i).slice(-12)}`,
+              username: v.username,
+              role_code: importTargetRole,
+              full_name: v.fullName,
+              email: v.email,
+              nip_nis:
+                importTargetRole === 'teacher'
+                  ? v.thirdColVal
+                  : `SISWA-${Date.now().toString().slice(-5)}${i + 1}`,
+              class_name: importTargetRole === 'student' ? v.thirdColVal : null,
+              is_active: true
+            }));
+            await sbClient.from('profiles').upsert(profileRows);
           }
 
           const newlyAdded: ManagedAccount[] = validItems.map((v, i) => ({
@@ -5017,12 +5138,22 @@ ${emptyTrs}
           }));
 
           setManagedAccounts((prev) => [...newlyAdded, ...prev]);
+          if (importTargetRole === 'student') {
+            setDbStudentDirectory((prev) => [
+              ...newlyAdded.map((s) => ({
+                id: s.id,
+                fullName: s.fullName,
+                className: s.className
+              })),
+              ...prev
+            ]);
+          }
           await recordAuditLog('BULK_IMPORT_USERS', 'profiles', {
             role: importTargetRole,
             count: validItems.length
           });
           showToast(
-            `${validItems.length} akun ${importTargetRole === 'teacher' ? 'Guru' : 'Siswa'} berhasil diimpor dari file Excel!`,
+            `${validItems.length} akun ${importTargetRole === 'teacher' ? 'Guru' : 'Siswa'} berhasil disimpan ke Supabase & aktif di semua perangkat!`,
             'success'
           );
           setImportRawRows([]);
@@ -6596,7 +6727,10 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                   <h3 className="text-lg font-black text-white">
                     Tambah Akun {newAccModalOpen === 'teacher' ? 'Guru' : 'Siswa'} Baru
                   </h3>
-                  <button onClick={() => setNewAccModalOpen(null)} className="text-slate-400 font-bold">
+                  <button
+                    onClick={() => setNewAccModalOpen(null)}
+                    className="text-slate-400 hover:text-white font-bold cursor-pointer"
+                  >
                     ✕
                   </button>
                 </div>
@@ -6605,14 +6739,19 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                     e.preventDefault();
                     const cleanUser = formAccUsername.trim().toLowerCase();
                     const cleanEmail = formAccEmail.trim().toLowerCase();
+                    if (!/^[a-z0-9_]{3,30}$/.test(cleanUser)) {
+                      showToast('Username wajib 3-30 karakter huruf kecil, angka, atau underscore.', 'error');
+                      return;
+                    }
                     if (
                       managedAccounts.some(
                         (a) => a.username === cleanUser || a.email === cleanEmail || a.nipNis === formAccNipNis.trim()
                       )
                     ) {
-                      showToast('Duplikasi Username, Email, atau NIP/NIS terdeteksi!', 'error');
+                      showToast('Username, Email, atau NIP/NIS sudah terdaftar!', 'error');
                       return;
                     }
+                    const newId = crypto.randomUUID ? crypto.randomUUID() : `acc_${Date.now()}`;
                     if (sbClient) {
                       await sbClient.functions.invoke('admin-provision-users', {
                         body: {
@@ -6629,9 +6768,19 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                           ]
                         }
                       });
+                      await sbClient.from('profiles').upsert({
+                        id: newId,
+                        username: cleanUser,
+                        role_code: newAccModalOpen,
+                        full_name: formAccFullName.trim(),
+                        email: cleanEmail,
+                        nip_nis: formAccNipNis.trim(),
+                        class_name: newAccModalOpen === 'student' ? formAccClass : null,
+                        is_active: true
+                      });
                     }
                     const created: ManagedAccount = {
-                      id: `acc_${Date.now()}`,
+                      id: newId,
                       username: cleanUser,
                       fullName: formAccFullName.trim(),
                       email: cleanEmail,
@@ -6642,6 +6791,12 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                       createdAt: new Date().toISOString().slice(0, 10)
                     };
                     setManagedAccounts((prev) => [created, ...prev]);
+                    if (newAccModalOpen === 'student') {
+                      setDbStudentDirectory((prev) => [
+                        { id: created.id, fullName: created.fullName, className: created.className },
+                        ...prev
+                      ]);
+                    }
                     await recordAuditLog('CREATE_USER_ACCOUNT', 'profiles', {
                       username: created.username,
                       role: created.role
