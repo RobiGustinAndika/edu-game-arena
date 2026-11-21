@@ -1687,6 +1687,7 @@ function EduGameArenaMain() {
   const [accountSearch, setAccountSearch] = useState('');
   const [accountPage, setAccountPage] = useState(1);
   const [newAccModalOpen, setNewAccModalOpen] = useState<'teacher' | 'student' | null>(null);
+  const [confirmBulkDeleteRole, setConfirmBulkDeleteRole] = useState<'teacher' | 'student' | null>(null);
   const [formAccFullName, setFormAccFullName] = useState('');
   const [formAccUsername, setFormAccUsername] = useState('');
   const [formAccEmail, setFormAccEmail] = useState('');
@@ -5155,6 +5156,15 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
+                {filtered.length > 0 && (
+                  <button
+                    onClick={() => setConfirmBulkDeleteRole(roleType)}
+                    className="px-3.5 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/35 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Hapus Semua {roleType === 'teacher' ? 'Guru' : 'Siswa'}
+                  </button>
+                )}
                 <button
                   onClick={() => exportAccountsReport(roleType, 'xlsx')}
                   className="px-3 py-2 rounded-xl bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-xs font-bold flex items-center gap-1 cursor-pointer"
@@ -6257,13 +6267,13 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
                                 try {
                                   await sbClient.from('game_results').delete().eq('id', item.id);
                                 } catch {
-                                  // ignore
+                                  // ignore if demo id
                                 }
                               }
                             }
                             setQuizResults([]);
-                            await recordAuditLog('DELETE_ALL_QUIZ_SCORES', 'game_results', {
-                              deleted_count: quizResults.length
+                            await recordAuditLog('CLEAR_ALL_QUIZ_SCORES', 'game_results', {
+                              cleared_count: quizResults.length
                             });
                             showToast('Seluruh riwayat skor hasil kuis berhasil dihapus.', 'info');
                           }}
@@ -6505,6 +6515,78 @@ ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
               )}
             </div>
           </div>
+
+          {/* Modal Konfirmasi Hapus Seluruh Guru / Seluruh Siswa */}
+          {confirmBulkDeleteRole && (
+            <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="w-full max-w-md rounded-3xl bg-[#0D132B] border border-rose-500/50 p-6 space-y-4 shadow-2xl">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-black text-rose-300 flex items-center gap-2">
+                    <AlertCircle className="w-5 h-5 text-rose-400" />
+                    Konfirmasi Hapus Massal
+                  </h3>
+                  <button
+                    onClick={() => setConfirmBulkDeleteRole(null)}
+                    className="text-slate-400 hover:text-white font-bold cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Apakah Anda yakin ingin menghapus{' '}
+                  <strong className="text-rose-300">
+                    SELURUH DATA{' '}
+                    {confirmBulkDeleteRole === 'teacher'
+                      ? `GURU (${teachersList.length} akun)`
+                      : `SISWA (${studentsList.length} akun)`}
+                  </strong>
+                  ? Tindakan ini akan menghapus semua akun dengan role{' '}
+                  <code>{confirmBulkDeleteRole}</code> dari daftar manajemen dan database Supabase.
+                </p>
+                <div className="flex gap-2.5 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmBulkDeleteRole(null)}
+                    className="flex-1 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-200 text-xs font-bold cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const targetRole = confirmBulkDeleteRole;
+                      const targets = managedAccounts.filter((a) => a.role === targetRole);
+                      if (sbClient) {
+                        try {
+                          await sbClient.from('profiles').delete().eq('role_code', targetRole);
+                        } catch {
+                          // ignore if RLS blocks non-uuid rows
+                        }
+                      }
+                      setManagedAccounts((prev) => prev.filter((a) => a.role !== targetRole));
+                      if (targetRole === 'student') {
+                        setDbStudentDirectory([]);
+                      }
+                      await recordAuditLog(
+                        targetRole === 'teacher' ? 'DELETE_ALL_TEACHERS' : 'DELETE_ALL_STUDENTS',
+                        'profiles',
+                        { deleted_count: targets.length }
+                      );
+                      setConfirmBulkDeleteRole(null);
+                      setAccountPage(1);
+                      showToast(
+                        `Seluruh data ${targetRole === 'teacher' ? 'Guru' : 'Siswa'} (${targets.length} akun) berhasil dihapus.`,
+                        'info'
+                      );
+                    }}
+                    className="flex-1 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-400 text-white font-black text-xs cursor-pointer"
+                  >
+                    Ya, Hapus Semua
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Modal Tambah Akun Guru / Siswa Tunggal via Edge Function */}
           {newAccModalOpen && (
